@@ -10,13 +10,16 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import ValidationError
 from langchain_core.tools import ToolException
 
-from .mock_data import today
+from .dates import DataSource, data_timezone, resolve_reference_date
 from .tools import create_tools
 
 
-def build_agent(*, model: ChatOpenAI | None = None, reference_date: date | None = None):
-    reference_date = reference_date or today()
-    tools = create_tools(reference_date)
+def build_agent(
+    *, model: ChatOpenAI | None = None, reference_date: date | None = None,
+    data_source: DataSource = "file_server",
+):
+    reference_date = resolve_reference_date(reference_date, data_source)
+    tools = create_tools(reference_date, data_source=data_source)
     if model is None:
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("Chưa có OPENAI_API_KEY. Hãy cấu hình .env hoặc chạy --mock-tools.")
@@ -27,9 +30,20 @@ def build_agent(*, model: ChatOpenAI | None = None, reference_date: date | None 
             max_retries=2,
         )
     llm_with_tools = model.bind_tools(tools)
+    source_note = ("Chế độ mock: mọi quan sát, vị trí, phân loại và URL đều là dữ liệu giả lập."
+                   if data_source == "mock" else
+                   "Tools đọc dữ liệu thật từ file server. Mỗi ảnh Telegram là một tàu riêng; "
+                   "không suy ra danh tính cùng tàu qua nhiều ảnh.")
+    image_note = ("Nói rõ đây là URL ảnh giả lập và bạn chưa phân tích nội dung ảnh."
+                  if data_source == "mock" else
+                  "Đây là URL ảnh thật do file server phục vụ; bạn chưa tải hay phân tích nội dung ảnh.")
+    confidence_note = ("Với danh sách tàu, đưa ship_url và độ tin cậy nếu có."
+                       if data_source == "mock" else
+                       "Với danh sách tàu, đưa ship_url và carrier score nếu có. confidence là score "
+                       "tàu sân bay, không phải độ tin cậy của nhãn âm; null là chưa có prediction.")
     prompt = SystemMessage(content=f"""Bạn là trợ lý truy vấn dữ liệu tàu khả nghi, trả lời bằng tiếng Việt.
-Ngày tham chiếu là {reference_date.isoformat()}, múi giờ Asia/Ho_Chi_Minh.
-Đây là bản demo: mọi quan sát, vị trí, phân loại và URL đều là dữ liệu giả lập.
+Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(data_source)}.
+{source_note}
 Dùng count_ships cho thống kê theo ngày; search_ships cho danh sách, kích thước,
 phân loại hoặc xem riêng ship_id. Luôn dùng tool để lấy dữ liệu, không tự bịa số.
 Ngày truyền vào tool chỉ có YYYY-MM-DD, bao gồm cả hai đầu mốc.
@@ -37,11 +51,12 @@ Ngày truyền vào tool chỉ có YYYY-MM-DD, bao gồm cả hai đầu mốc.
 search_ships tìm toàn bộ dữ liệu. Không tự thêm bộ lọc người dùng không yêu cầu.
 Đếm theo ngày không phải số tàu duy nhất của cả giai đoạn; không cộng các ngày
 rồi gọi tổng đó là số tàu duy nhất. Phân loại aircraft_carrier chỉ là kết quả mô hình.
-Trình bày thống kê bằng bảng. Với danh sách tàu, đưa ship_url và độ tin cậy nếu có.
+Trình bày thống kê bằng bảng. {confidence_note}
 Nếu người dùng yêu cầu xem ảnh, đưa Markdown ![chú thích](URL) từ images của tool,
-nói rõ đây là URL ảnh giả lập; chưa có ảnh thật và bạn chưa phân tích nội dung ảnh.
+{image_note}
 Kết quả có total lớn hơn số bản ghi trả về thì nói rõ phân trang, không gọi đó là toàn bộ.
-Khi tool báo lỗi, sửa tham số hoặc giải thích yêu cầu cần điều chỉnh.
+Khi tool báo lỗi tham số, sửa tham số hoặc giải thích yêu cầu cần điều chỉnh.
+Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không suy ra không có tàu.
 """)
 
     def call_model(state: MessagesState):

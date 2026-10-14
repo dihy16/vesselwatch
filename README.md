@@ -2,8 +2,8 @@
 
 ## FastAPI phục vụ dữ liệu thật trên MID
 
-Server dữ liệu chạy riêng với LangGraph. Bước này chưa nối agent với dữ liệu thật;
-agent và `--mock-tools` vẫn sử dụng `mock_data.py`.
+Server dữ liệu chạy riêng với LangGraph. Agent mặc định đọc dữ liệu thật qua HTTP;
+`--mock-tools` chọn dữ liệu giả lập để thử tools độc lập.
 
 Trên MID, cài dependencies và sửa trực tiếp các hằng số trong `file_server/config.py`:
 
@@ -85,19 +85,19 @@ Tests dùng file tạm, metadata nhỏ và HTTP TestClient trong tiến trình:
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest tests/test_data_api.py -q
+python -m pytest tests/file_server/test_data_api.py -q
 ```
 
 Kiểm tra parser bằng thư viện chuẩn, không cần cài dependency:
 
 ```bash
-python -m unittest discover -s tests -p test_caption.py -v
+python -m unittest discover -s tests/file_server -p test_caption.py -v
 ```
 
-## Agent demo hiện tại
+## Agent truy vấn dữ liệu
 
-Python 3.10+, LangGraph và ChatOpenAI. Hai tools đọc dữ liệu giả lập trong bộ nhớ,
-không cần SQLite hoặc dịch vụ lưu trữ. Chưa có giao diện chat.
+Python 3.10+, LangGraph và ChatOpenAI. Khi tool được gọi, nó đọc observations từ
+file server rồi đếm/lọc dữ liệu. Chưa có giao diện chat trong repo.
 
 ```text
 START → agent (ChatOpenAI.bind_tools)
@@ -135,11 +135,11 @@ Tham khảo [cấu hình base_url của ChatOpenAI](https://docs.langchain.com/o
 # Thử tools trực tiếp, không cần API key và không phát sinh lời gọi OpenAI.
 python -m ship_agent --mock-tools --today 2026-10-13
 
-# Agent gọi LLM thật; dữ liệu do tools trả về vẫn là giả lập.
+# Agent gọi LLM và đọc dữ liệu thật từ file server đang chạy.
 python -m ship_agent --show-tools
 python -m ship_agent --question "Liệt kê tàu dài 250–350 m, rộng 50–80 m."
 python -m ship_agent --question "Những tàu nào được nhận dạng là tàu sân bay?"
-python -m ship_agent --question "Cho tôi xem ảnh và thông tin tàu SHIP_001."
+python -m ship_agent --question "Liệt kê tàu rồi cho tôi xem ảnh của tàu đầu tiên."
 ```
 
 Mỗi lần chạy CLI xử lý một câu hỏi, giữ messages trong toàn bộ vòng gọi tools của
@@ -181,7 +181,10 @@ Graph nhận input dạng:
 }
 ```
 
-Factory tạo graph theo mỗi run để ngày tham chiếu và mock data cập nhật theo ngày.
+Factory tạo graph theo mỗi run để ngày tham chiếu UTC cập nhật theo ngày.
+Import module, tạo tools hoặc graph không gọi file server. Khi tool chạy, nó gọi
+`/observations` với khoảng ngày được hỏi, lấy đủ các trang 100 bản ghi rồi đếm/lọc.
+Mỗi lần gọi tool đọc lại API; snapshot gốc trên file server được nạp lúc server khởi động.
 Chạy server không tự gọi LLM; khi gửi câu hỏi, agent mới gọi endpoint trong `.env`.
 Xem [hướng dẫn LangGraph dev](https://docs.langchain.com/langsmith/local-dev-testing).
 
@@ -200,7 +203,7 @@ python client.py --question "Thống kê tàu khả nghi theo ngày trong 7 ngà
 python client.py --chat --show-tools
 
 # Tiếp tục hội thoại bằng Thread ID được client in ra.
-python client.py --thread-id THREAD_ID --question "Cho tôi xem ảnh tàu SHIP_001."
+python client.py --thread-id THREAD_ID --question "Cho tôi xem ảnh của tàu vừa liệt kê."
 
 # Nếu server dùng cổng khác.
 python client.py --url http://127.0.0.1:2025 --question "Liệt kê tàu sân bay."
@@ -220,7 +223,7 @@ Mỗi câu hỏi sẽ gọi LLM đã cấu hình trên server.
 
 `count_ships(observed_from, observed_to)` trả `daily_stats`, mỗi ngày gồm
 `suspicious_ship_count` và `possible_aircraft_carrier_count`. Hai ngày là chuỗi
-`YYYY-MM-DD`, tính cả hai đầu mốc theo `Asia/Ho_Chi_Minh`, tối đa 366 ngày/lần gọi.
+`YYYY-MM-DD`, tính cả hai đầu mốc theo UTC (mock dùng `Asia/Ho_Chi_Minh`), tối đa 366 ngày/lần gọi.
 Ngày trống có số 0. Toàn bộ tàu trong tập dữ liệu đều là tàu khả nghi.
 Đếm ID duy nhất mỗi ngày; phân loại dựa trên lần quan sát cuối ngày.
 `aircraft_carrier` được tính là có khả năng là tàu sân bay, không áp thêm ngưỡng
@@ -241,10 +244,15 @@ Chọn lần quan sát mới nhất của mỗi tàu **trong khoảng ngày**, s
 kích thước/phân loại. Sắp xếp theo `ship_id` để phân trang ổn định.
 Trả `total` trước phân trang, `filters`, `ships` gồm ID tàu và lần quan sát,
 `ship_url`, `observed_date`, `observed_at`, kích thước, vị trí, phân loại,
-`confidence` (null nếu chưa xác định), `images` gồm URL/chú thích/MIME type.
+`confidence` (carrier score với dữ liệu thật, null nếu chưa có prediction),
+`images` gồm URL/chú thích/MIME type.
 
-Hai tools cùng dùng một snapshot. `is_mock`, `reference_date`, `timezone` được
-trả kèm. Mock có 6 tàu, 8 lần quan sát, tạo ngày tương đối theo ngày chạy
+`is_mock`, `reference_date`, `timezone` được trả kèm. Agent thật trả `is_mock=false`
+và `timezone="UTC"`. `reference_date` chỉ là mốc giải thích câu hỏi, không đổi ngày
+observations. Lỗi kết nối/timeout/HTTP hoặc response sai được báo lỗi tool, không
+trả kết quả rỗng hoặc số 0 thay lỗi. Timeout mỗi HTTP request là 30 giây.
+
+Chế độ mock dùng chung một snapshot có 6 tàu, 8 lần quan sát, tạo ngày tương đối theo ngày chạy
 (hoặc `--today`). Ví dụ `--today 2026-10-13`: ngày 07/10 có 2 tàu khả nghi,
 1 có khả năng là tàu sân bay; ngày 12/10 có 2/1; ngày 13/10 có 2/1.
 SHIP_001 có kết quả nhận dạng khác nhau qua các lần quan sát để thử quy tắc chọn
@@ -252,7 +260,41 @@ lần cuối. Các URL `example.com` chỉ là placeholder, chưa dẫn tới �
 Agent có thể trả Markdown ảnh để frontend hỗ trợ Markdown hiển thị sau này;
 không tự tải ảnh hay đưa ảnh vào model vision.
 
+### Cấu hình kết nối tools với file server
+
+Sửa `FILE_SERVER_URL` trong `ship_agent/config.py`, mặc định `http://127.0.0.1:8001`.
+Đây là URL LangGraph gọi từ MID; `DATA_API_BASE_URL` trong `file_server/config.py`
+là URL được trả về cho trình duyệt mở ảnh. Hai URL có thể khác nhau khi dùng port forwarding.
+
+Trên MID, chạy file server và LangGraph trong hai terminal:
+
+```bash
+# Terminal 1
+python -m uvicorn file_server.app:create_app --factory --host 127.0.0.1 --port 8001
+# Terminal 2
+langgraph dev --no-browser
+```
+
+LangGraph chạy port 2024. Với trình duyệt trên laptop, forward cả 2024 và 8001
+để truy cập chat và ảnh. Có thể thử thống kê một ngày UTC có trong dữ liệu:
+
+```bash
+python client.py --question "Thống kê tàu khả nghi ngày 2026-05-15." --show-tools
+```
+
+Trong Python, `create_tools()` và `build_agent()` mặc định dùng file server.
+Truyền `data_source="mock"` khi muốn dùng mock; `--mock-tools` tự chọn chế độ này.
+
 ## Kiểm thử
+
+Tests được chia theo phạm vi: `tests/agent/`, `tests/file_server/` và
+`tests/integration/`. Có thể chạy riêng từng nhóm:
+
+```bash
+python -m pytest tests/agent -q
+python -m pytest tests/file_server -q
+python -m pytest tests/integration -q
+```
 
 ```bash
 python -m pytest -q
@@ -260,7 +302,9 @@ python -m pytest -q
 
 Test kiểm tra đếm trùng, ngày trống, lọc/phân trang, dữ liệu sai và vòng lặp graph
 với **ChatOpenAI thật nhưng HTTP response giả lập**. Không cần key thật, không
-gọi mạng. Muốn xác minh model tự chọn tool bằng LLM thật, chạy CLI với API key.
+gọi mạng. Tests nguồn thật dùng HTTPX MockTransport để kiểm tra đủ trang, ngày UTC,
+lọc trước phân trang và lỗi nguồn dữ liệu. Muốn xác minh model tự chọn tool bằng
+LLM thật, chạy CLI với API key.
 
 Tham khảo: [LangGraph quickstart](https://docs.langchain.com/oss/python/langgraph/quickstart),
 [ChatOpenAI tools](https://docs.langchain.com/oss/python/integrations/chat/openai),

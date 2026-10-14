@@ -1,4 +1,4 @@
-"""Two LangChain tools backed by an in-memory synthetic observation list."""
+"""Ship query tools using the file server by default, with an explicit mock mode."""
 
 from copy import deepcopy
 from datetime import date, timedelta
@@ -7,9 +7,11 @@ from typing import Annotated, Literal
 from langchain_core.tools import ToolException, tool
 from pydantic import BaseModel, ConfigDict, Field
 
-from .mock_data import build_observations, today
+from .dates import DataSource, data_timezone, resolve_reference_date
+from .file_server_client import FileServerError, load_observations
+from .mock_data import build_observations
 
-DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD; Asia/Ho_Chi_Minh.")]
+DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
 Classification = Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"]
 
 
@@ -44,15 +46,24 @@ def _date_range(start: str | None, end: str | None) -> tuple[date | None, date |
     return first, last
 
 
-def create_tools(reference_date: date | None = None):
-    """Use the same mock snapshot for both tools; optionally freeze its reference date."""
-    anchor = reference_date or today()
-    observations = build_observations(anchor)
-    metadata = {"is_mock": True, "reference_date": anchor.isoformat(), "timezone": "Asia/Ho_Chi_Minh"}
+def create_tools(reference_date: date | None = None, *, data_source: DataSource = "file_server"):
+    """Create tools without HTTP calls; fetch real observations when a tool runs."""
+    anchor = resolve_reference_date(reference_date, data_source)
+    is_mock = data_source == "mock"
+    mock_observations = build_observations(anchor) if is_mock else None
+    metadata = {"is_mock": is_mock, "reference_date": anchor.isoformat(), "timezone": data_timezone(data_source)}
+
+    def read_observations(first, last):
+        if is_mock:
+            return mock_observations
+        try:
+            return load_observations(first, last)
+        except FileServerError as exc:
+            raise ToolException(str(exc)) from exc
 
     def latest_in_range(first, last, per_day=False):
         latest = {}
-        for observation in observations:
+        for observation in read_observations(first, last):
             day = date.fromisoformat(observation["observed_date"])
             if (first and day < first) or (last and day > last):
                 continue
@@ -68,7 +79,7 @@ def create_tools(reference_date: date | None = None):
         Ngày YYYY-MM-DD, gồm cả hai đầu mốc, tối đa 366 ngày mỗi lần gọi.
         Đếm ID tàu duy nhất trong ngày, dùng phân loại của lần quan sát cuối ngày.
         aircraft_carrier là kết quả mô hình, không phải xác nhận thực tế.
-        Ngày không có quan sát trả 0. Kết quả là dữ liệu giả lập.
+        Ngày không có quan sát trả 0. Lỗi nguồn dữ liệu được báo lỗi, không tính là 0.
         """
         first, last = _date_range(observed_from, observed_to)
         if (last - first).days >= 366:
@@ -100,7 +111,7 @@ def create_tools(reference_date: date | None = None):
         Ngày YYYY-MM-DD và kích thước mét, gồm cả hai đầu mốc; bộ lọc có thể bỏ qua.
         Chọn lần quan sát mới nhất của mỗi tàu trong khoảng ngày TRƯỚC khi lọc
         kích thước/phân loại. Dùng ship_id để xem riêng một tàu. Có phân trang.
-        URL và toàn bộ dữ liệu là giả lập, chưa có ảnh vệ tinh thật.
+        confidence là carrier score; null nếu chưa có prediction.
         """
         first, last = _date_range(observed_from, observed_to)
         for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]:
@@ -124,6 +135,10 @@ def create_tools(reference_date: date | None = None):
         return {**metadata, "filters": filters, "total": len(matches), "limit": limit, "offset": offset,
                 "ships": deepcopy(matches[offset:offset + limit])}
 
+    source_description = ("Dữ liệu và URL giả lập." if is_mock else
+                          "Dữ liệu thật từ file server; mỗi ảnh Telegram là một tàu riêng.")
+    for query_tool in (count_ships, search_ships):
+        query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"
     return [count_ships, search_ships]
 
 
