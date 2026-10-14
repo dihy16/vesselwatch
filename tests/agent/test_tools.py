@@ -9,7 +9,7 @@ from ship_agent.tools import create_tools
 
 @pytest.fixture
 def tools():
-    return create_tools(date(2026, 10, 13))
+    return create_tools(date(2026, 10, 13), data_source="mock")
 
 
 def test_daily_counts_deduplicate_and_use_latest_classification(tools):
