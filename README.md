@@ -1,5 +1,101 @@
 # Agent truy vấn tàu — level 1
 
+## FastAPI phục vụ dữ liệu thật trên MID
+
+Server dữ liệu chạy riêng với LangGraph. Bước này chưa nối agent với dữ liệu thật;
+agent và `--mock-tools` vẫn sử dụng `mock_data.py`.
+
+Trên MID, cài dependencies và sửa trực tiếp các hằng số trong `file_server/config.py`:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+| Biến | Nội dung |
+| --- | --- |
+| `TELEGRAM_METADATA_PATH` | JSON array Telegram, có `message_id`, `date`, `caption`, `image` |
+| `TELEGRAM_IMAGE_ROOT` | Thư mục chứa ảnh, ví dụ `/data2/DATA/telegram_data/images` |
+| `SAVED_RUN_DIR` | Thư mục run chứa `originals_manifest.json` và `offline_cloud_crop_staged/report.json` |
+| `SAVED_RUN_SEED` | Seed prediction đã lưu, mặc định `42` |
+| `DATA_API_BASE_URL` | URL gốc cho `ship_url` và URL ảnh, mặc định `http://127.0.0.1:8001` |
+
+Điền `SAVED_RUN_DIR` trong file cấu hình trước khi chạy; mặc định để trống và server
+báo lỗi nếu chưa điền. Server dữ liệu không đọc `.env` hoặc biến môi trường để cấu hình.
+Các đường dẫn phải là đường dẫn thực trên MID. Không cần checkpoint, GPU hoặc API key
+để chạy server dữ liệu. Run cần chứa `source_id` trong manifest; đường dẫn crop
+`/content/...` trong report chỉ dùng làm khóa ghép, không cần tồn tại trên MID.
+Không cần tracking JSON. Lỗi nạp JSON báo file, dòng và cột.
+
+```bash
+python -m uvicorn file_server.app:create_app --factory --host 127.0.0.1 --port 8001
+```
+
+Mở `http://127.0.0.1:8001/docs` để thử API:
+
+- `GET /health`: số observation, prediction đã ghép, unknown và số bản ghi bị bỏ qua.
+- `GET /observations?observed_from=2026-10-01&observed_to=2026-10-14&limit=20&offset=0`:
+  lọc ngày UTC, tính cả hai đầu mốc; trả `total`, `limit`, `offset`, `observations`.
+  Có thể bỏ một hoặc cả hai mốc; limit tối đa 100; sắp theo `ship_id` để phân trang ổn định.
+- `GET /ships/{ship_id}`: một observation đầy đủ theo cấu trúc mock, hoặc 404.
+- `GET /images/{image_id}`: nội dung ảnh và MIME type, hoặc 404. Chỉ ảnh đã đăng ký
+  được phục vụ; không nhận đường dẫn file tùy ý.
+
+Luồng ghép: prediction `image_path` → manifest `source_id` → ID sau `- Tàu:` trong
+Telegram caption. Kiểm tra split/label và score hợp lệ như demo; không dùng ground
+truth để phân loại. ID prediction trùng gây lỗi khởi động.
+Score seed đã chọn ≥ 0.5 là `aircraft_carrier`, thấp hơn là `not_aircraft_carrier`;
+không có prediction là `unknown`, `confidence = null`. `confidence` giữ carrier
+score nguyên gốc: 0.1 nghĩa là score tàu sân bay 10%, không phải độ tin cậy nhãn âm.
+Prediction của crop được gắn vào ảnh Telegram qua detection ID, không phải inference
+lại trên toàn ảnh Telegram.
+
+Mỗi tên file ảnh Telegram có một `ship_id` riêng, được tạo ổn định bằng SHA-256
+của tên file. Hai ảnh cùng detection ID vẫn là hai tàu riêng. Bản ghi lặp cùng tên
+file/cùng detection chỉ giữ một; cùng tên file nối nhiều detection gây lỗi.
+`observation_id` và `image_id` cũng dựa trên tên file. Lấy tọa độ từ `- Vị trí:`,
+chiều dài/rộng từ `- Dài / Rộng:`, thời gian quan sát từ `- Thời gian:` trong caption.
+Giờ trong caption là UTC và giữ nguyên UTC (`observed_at` có `+00:00`, `observed_date`
+là ngày UTC); không dùng `date` của message vì đó là ngày gửi Telegram.
+Ví dụ `2026-05-15 10:04:14` → `2026-05-15T10:04:14+00:00`.
+Tên file lấy từ trường `image`: `telegram_data/images/photo_2026-05-17_05-33-24.jpg`
+→ `photo_2026-05-17_05-33-24.jpg` trong `TELEGRAM_IMAGE_ROOT`.
+Thiếu detection ID, file ảnh hoặc loại ảnh không hỗ trợ thì bỏ qua và đếm
+trong `/health`; ảnh khớp nhưng caption thiếu/sai trường quan sát gây lỗi khởi động.
+Không tự lọc theo ground truth, split hay chiều dài.
+
+Code phục vụ dữ liệu nằm riêng trong `file_server/`: `config.py` chứa các thiết lập,
+`app.py` khai báo endpoints, `loader.py` nạp metadata/prediction và tạo observations,
+`caption.py` phân tích caption.
+Metadata, ảnh và kết quả run thật giữ trên MID, ngoài thư mục code.
+
+Metadata/prediction được nạp một lần khi khởi động; đổi dữ liệu hoặc cấu hình cần restart.
+Ảnh đọc từ đĩa khi truy cập URL. Nếu xem từ laptop, forward cổng 8001 từ MID và dùng
+`DATA_API_BASE_URL = "http://127.0.0.1:8001"` trong `config.py` (hoặc cổng local đã forward). `127.0.0.1`
+luôn là máy của bên mở URL. Nếu truy cập MID trực tiếp, cấu hình URL mà trình duyệt
+truy cập được và bind Uvicorn vào địa chỉ phù hợp.
+
+Kiểm tra server mà không gọi LLM:
+
+```bash
+curl http://127.0.0.1:8001/health
+curl 'http://127.0.0.1:8001/observations?limit=1'
+```
+
+Tests dùng file tạm, metadata nhỏ và HTTP TestClient trong tiến trình:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest tests/test_data_api.py -q
+```
+
+Kiểm tra parser bằng thư viện chuẩn, không cần cài dependency:
+
+```bash
+python -m unittest discover -s tests -p test_caption.py -v
+```
+
+## Agent demo hiện tại
+
 Python 3.10+, LangGraph và ChatOpenAI. Hai tools đọc dữ liệu giả lập trong bộ nhớ,
 không cần SQLite hoặc dịch vụ lưu trữ. Chưa có giao diện chat.
 
