@@ -1,0 +1,130 @@
+"""Two LangChain tools backed by an in-memory synthetic observation list."""
+
+from copy import deepcopy
+from datetime import date, timedelta
+from typing import Annotated, Literal
+
+from langchain_core.tools import ToolException, tool
+from pydantic import BaseModel, ConfigDict, Field
+
+from .mock_data import build_observations, today
+
+DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD; Asia/Ho_Chi_Minh.")]
+Classification = Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"]
+
+
+class CountShipsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observed_from: DateString
+    observed_to: DateString
+
+
+class SearchShipsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    observed_from: DateString | None = None
+    observed_to: DateString | None = None
+    ship_id: str | None = Field(default=None, description="ID tàu chính xác, ví dụ SHIP_001.")
+    min_length_m: float | None = Field(default=None, ge=0)
+    max_length_m: float | None = Field(default=None, ge=0)
+    min_width_m: float | None = Field(default=None, ge=0)
+    max_width_m: float | None = Field(default=None, ge=0)
+    classification: Classification | None = None
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+
+
+def _date_range(start: str | None, end: str | None) -> tuple[date | None, date | None]:
+    try:
+        first = date.fromisoformat(start) if start else None
+        last = date.fromisoformat(end) if end else None
+    except ValueError as exc:
+        raise ToolException("Ngày không hợp lệ; dùng YYYY-MM-DD.") from exc
+    if first and last and first > last:
+        raise ToolException("observed_from phải nhỏ hơn hoặc bằng observed_to.")
+    return first, last
+
+
+def create_tools(reference_date: date | None = None):
+    """Use the same mock snapshot for both tools; optionally freeze its reference date."""
+    anchor = reference_date or today()
+    observations = build_observations(anchor)
+    metadata = {"is_mock": True, "reference_date": anchor.isoformat(), "timezone": "Asia/Ho_Chi_Minh"}
+
+    def latest_in_range(first, last, per_day=False):
+        latest = {}
+        for observation in observations:
+            day = date.fromisoformat(observation["observed_date"])
+            if (first and day < first) or (last and day > last):
+                continue
+            key = (day, observation["ship_id"]) if per_day else observation["ship_id"]
+            if key not in latest or observation["observed_at"] > latest[key]["observed_at"]:
+                latest[key] = observation
+        return list(latest.values())
+
+    @tool(args_schema=CountShipsInput)
+    def count_ships(observed_from: str, observed_to: str) -> dict:
+        """Thống kê tàu khả nghi và tàu có khả năng là tàu sân bay theo từng ngày.
+
+        Ngày YYYY-MM-DD, gồm cả hai đầu mốc, tối đa 366 ngày mỗi lần gọi.
+        Đếm ID tàu duy nhất trong ngày, dùng phân loại của lần quan sát cuối ngày.
+        aircraft_carrier là kết quả mô hình, không phải xác nhận thực tế.
+        Ngày không có quan sát trả 0. Kết quả là dữ liệu giả lập.
+        """
+        first, last = _date_range(observed_from, observed_to)
+        if (last - first).days >= 366:
+            raise ToolException("Mỗi lần thống kê tối đa 366 ngày; hãy chia nhỏ khoảng ngày.")
+        by_day = {}
+        for observation in latest_in_range(first, last, per_day=True):
+            by_day.setdefault(observation["observed_date"], []).append(observation)
+        stats = []
+        for offset in range((last - first).days + 1):
+            day = (first + timedelta(days=offset)).isoformat()
+            ships = by_day.get(day, [])
+            stats.append({
+                "date": day,
+                "suspicious_ship_count": len(ships),
+                "possible_aircraft_carrier_count": sum(s["classification"] == "aircraft_carrier" for s in ships),
+            })
+        return {**metadata, "observed_from": observed_from, "observed_to": observed_to, "daily_stats": stats}
+
+    @tool(args_schema=SearchShipsInput)
+    def search_ships(
+        observed_from: str | None = None, observed_to: str | None = None,
+        ship_id: str | None = None,
+        min_length_m: float | None = None, max_length_m: float | None = None,
+        min_width_m: float | None = None, max_width_m: float | None = None,
+        classification: Classification | None = None, limit: int = 20, offset: int = 0,
+    ) -> dict:
+        """Tìm tàu khả nghi, trả URL chi tiết, kích thước, vị trí, ngày giờ, phân loại và URL ảnh.
+
+        Ngày YYYY-MM-DD và kích thước mét, gồm cả hai đầu mốc; bộ lọc có thể bỏ qua.
+        Chọn lần quan sát mới nhất của mỗi tàu trong khoảng ngày TRƯỚC khi lọc
+        kích thước/phân loại. Dùng ship_id để xem riêng một tàu. Có phân trang.
+        URL và toàn bộ dữ liệu là giả lập, chưa có ảnh vệ tinh thật.
+        """
+        first, last = _date_range(observed_from, observed_to)
+        for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]:
+            if minimum is not None and maximum is not None and minimum > maximum:
+                raise ToolException(f"min_{field} phải nhỏ hơn hoặc bằng max_{field}.")
+        matches = []
+        for observation in latest_in_range(first, last):
+            if ship_id is not None and observation["ship_id"] != ship_id:
+                continue
+            if classification is not None and observation["classification"] != classification:
+                continue
+            if any((minimum is not None and observation[field] < minimum) or
+                   (maximum is not None and observation[field] > maximum)
+                   for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]):
+                continue
+            matches.append(observation)
+        matches.sort(key=lambda item: item["ship_id"])
+        filters = {"observed_from": observed_from, "observed_to": observed_to, "ship_id": ship_id,
+                   "min_length_m": min_length_m, "max_length_m": max_length_m,
+                   "min_width_m": min_width_m, "max_width_m": max_width_m, "classification": classification}
+        return {**metadata, "filters": filters, "total": len(matches), "limit": limit, "offset": offset,
+                "ships": deepcopy(matches[offset:offset + limit])}
+
+    return [count_ships, search_ships]
+
+
+count_ships, search_ships = create_tools()
