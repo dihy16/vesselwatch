@@ -3,11 +3,13 @@
 from contextlib import asynccontextmanager
 from datetime import date
 import logging
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
+from .carrier_reports import daily_carrier_report, render_carrier_chart
 from .config import DataSettings
 from .loader import Observation, load_store, registered_image
 
@@ -25,7 +27,8 @@ def create_app(settings: DataSettings | None = None) -> FastAPI:
     """Load a shared snapshot at startup; inject settings for local tests."""
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.store = load_store(settings or DataSettings.from_config())
+        app.state.settings = settings or DataSettings.from_config()
+        app.state.store = load_store(app.state.settings)
         logging.getLogger(__name__).info("Loaded data snapshot: %s", app.state.store.summary)
         yield
         del app.state.store
@@ -74,5 +77,35 @@ def create_app(settings: DataSettings | None = None) -> FastAPI:
         if path is None:
             raise HTTPException(404, "Image file unavailable.")
         return FileResponse(path, media_type=mime)
+
+    def build_report(request: Request, first: date, last: date):
+        try:
+            return daily_carrier_report(
+                (o.model_dump() for o in request.app.state.store.observations), first, last,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/reports/daily-carriers")
+    def carrier_report(request: Request, observed_from: date, observed_to: date):
+        report = build_report(request, observed_from, observed_to)
+        base = request.app.state.settings.base_url.rstrip("/")
+        query = urlencode({"observed_from": report["observed_from"],
+                           "observed_to": report["observed_to"],
+                           "report_id": report["report_id"]})
+        return {**report, "is_mock": False,
+                "chart_url": f"{base}/charts/daily-carriers.png?{query}",
+                "coverage": request.app.state.store.summary}
+
+    @app.get("/charts/daily-carriers.png", response_class=Response)
+    def carrier_chart(
+        request: Request, observed_from: date, observed_to: date,
+        report_id: str = Query(pattern=r"^[a-f0-9]{64}$"),
+    ):
+        report = build_report(request, observed_from, observed_to)
+        if report["report_id"] != report_id:
+            raise HTTPException(409, "Report data changed; request a new daily carrier report.")
+        return Response(render_carrier_chart(report), media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=3600"})
 
     return app

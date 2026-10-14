@@ -152,7 +152,7 @@ OPENAI_API_KEY=your-endpoint-key
 `OPENAI_BASE_URL` là API root (thường kết thúc bằng `/v1`), không phải URL đầy đủ
 `/chat/completions`. Để trống khi dùng endpoint OpenAI mặc định. Nếu server local
 không yêu cầu xác thực, đặt `OPENAI_API_KEY=local-demo` để khởi tạo client.
-Endpoint và model cần hỗ trợ `tools`/`tool_calls` để agent gọi được hai tools.
+Endpoint và model cần hỗ trợ `tools`/`tool_calls` để agent gọi được các tools.
 Tham khảo [cấu hình base_url của ChatOpenAI](https://docs.langchain.com/oss/python/integrations/chat/openai).
 
 ```bash
@@ -342,3 +342,66 @@ LLM thật, chạy CLI với API key.
 Tham khảo: [LangGraph quickstart](https://docs.langchain.com/oss/python/langgraph/quickstart),
 [ChatOpenAI tools](https://docs.langchain.com/oss/python/integrations/chat/openai),
 [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling).
+
+
+## Báo cáo và chart PNG theo ngày
+
+Tool `daily_carrier_report(observed_from, observed_to)` trả số liệu và URL ảnh PNG.
+Agent chèn ảnh bằng Markdown vào câu trả lời; không cần chỉnh Open WebUI Admin panel.
+Phần kết nối chat hiện tại phải giữ nguyên Markdown ảnh trong câu trả lời của agent.
+
+- Chỉ đếm prediction `predicted_aircraft_carrier=true` (classification `aircraft_carrier`),
+  không áp lại ngưỡng score và không tính toàn bộ observations là tàu sân bay.
+- Ngày lấy từ `observed_at` đã parse bằng `TIME_PATTERN` trong caption, giữ UTC;
+  không dùng ngày gửi Telegram, tên ảnh hoặc thời gian trong Sentinel ID.
+- Đếm từng `observation_id` riêng; hai ảnh của cùng tàu/detection vẫn là hai lượt.
+  Bản ghi lặp cùng observation không tăng số đếm. Đây không phải số tàu duy nhất
+  hoặc nhãn tàu sân bay đã được xác nhận.
+- Khoảng ngày gồm cả hai đầu mốc, tối đa 366 ngày; các ngày không có lượt trả 0.
+- Report và PNG cùng dùng snapshot của file server. Chỉ bao gồm observations
+  có metadata, prediction và ảnh đã được nạp. `coverage` trả số observations và
+  các bản ghi bị bỏ qua. Không suy diễn số đếm là mức độ hoạt động tàu thực tế.
+- Chart tạo trong bộ nhớ, không ghi vào dataset. URL gắn với hash số liệu;
+  nếu restart server với số liệu khác, URL cũ trả 409 thay vì hiện chart sai.
+  Hỏi lại báo cáo để nhận URL mới. Agent dùng endpoint báo cáo mới khi gọi tool,
+  không dùng snapshot cũ của `count_ships` để tạo chart.
+- Mock mode chỉ trả số liệu giả và `chart_url=null`, không tạo URL ảnh giả.
+
+Trên remote, cập nhật code, cài dependency rồi restart file server và LangGraph:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Nếu truy cập qua port forwarding, forward cả port `8001` của file server cùng port
+Open WebUI `8080`. `DATA_API_BASE_URL` trong `file_server/config.py` phải là URL
+mà trình duyệt tải được, ví dụ `http://127.0.0.1:8001` khi có forwarding.
+`FILE_SERVER_URL` trong `ship_agent/config.py` là URL mà LangGraph gọi từ remote;
+hai URL có thể khác nhau. Chỉ forward port 8080 không phục vụ ảnh chart ở port 8001.
+URL loopback bên trong Docker là của container, không phải host. Nếu lớp kết nối
+Open WebUI tải/proxy ảnh thay cho trình duyệt, dùng URL mà cả nó cũng truy cập được.
+
+Ví dụ câu hỏi:
+
+```text
+Vẽ biểu đồ số lượt phát hiện nghi là tàu sân bay theo ngày từ 2026-10-01 đến 2026-10-14.
+```
+
+Thử không cần LLM bằng cách mở:
+
+```text
+http://127.0.0.1:8001/reports/daily-carriers?observed_from=2026-10-01&observed_to=2026-10-14
+```
+
+Mở `chart_url` trong JSON để kiểm tra PNG trước khi thử trong chat.
+
+Kiểm tra offline với metadata/predictions và ảnh giả trong thư mục tạm:
+
+```bash
+python -m pytest tests -q
+```
+
+Các test chart kiểm tra ngày caption, nhãn boolean đã lưu, lượt đếm, ngày 0,
+PNG đọc được, URL/total từ tool, thay đổi dữ liệu và vòng gọi LangGraph bằng LLM giả.
+Không cần GPU, dữ liệu production hoặc API key thật. Việc hiển thị trong Open WebUI
+đang chạy trên remote cần được kiểm tra sau khi cập nhật và restart dịch vụ.

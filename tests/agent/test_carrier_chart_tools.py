@@ -1,0 +1,133 @@
+"""Mock HTTP/LLM checks for the carrier report tool and Markdown output."""
+
+from datetime import date
+import json
+from urllib.parse import urlencode
+
+import httpx
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import ToolException
+from langchain_openai import ChatOpenAI
+import pytest
+
+from file_server.carrier_reports import daily_carrier_report
+from ship_agent.agent import build_agent
+from ship_agent.file_server_client import FileServerError, load_daily_carrier_report
+from ship_agent import tools as tools_module
+
+
+FIRST, LAST = date(2026, 10, 12), date(2026, 10, 14)
+
+
+def report_data():
+    report = daily_carrier_report([
+        {"observation_id": "one", "observed_date": FIRST.isoformat(),
+         "classification": "aircraft_carrier"},
+    ], FIRST, LAST)
+    query = urlencode({"observed_from": report["observed_from"],
+                       "observed_to": report["observed_to"], "report_id": report["report_id"]})
+    return {**report, "is_mock": False, "chart_url": f"http://viewer:8001/charts/daily-carriers.png?{query}",
+            "coverage": {"observation_count": 1, "skipped": {"missing_prediction": 0}}}
+
+
+def test_client_requests_full_range_and_keeps_public_chart_url():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json=report_data())
+
+    report = load_daily_carrier_report(FIRST, LAST, base_url="http://internal:8001",
+                                     transport=httpx.MockTransport(respond))
+    assert str(requests[0].url).startswith("http://internal:8001/reports/daily-carriers?")
+    assert requests[0].url.params["observed_to"] == LAST.isoformat()
+    assert report["chart_url"].startswith("http://viewer:8001/")
+    assert report["total_detections"] == 1
+
+
+@pytest.mark.parametrize("change", ["missing_day", "total", "negative", "url", "range", "json"])
+def test_client_rejects_inconsistent_report_data(change):
+    report = report_data()
+    if change == "missing_day":
+        report["daily_stats"].pop()
+    elif change == "total":
+        report["total_detections"] = 99
+    elif change == "negative":
+        report["daily_stats"][0]["possible_aircraft_carrier_count"] = -1
+    elif change == "url":
+        report["chart_url"] = "javascript:alert(1)"
+    elif change == "range":
+        report["observed_from"] = "2026-10-11"
+
+    def respond(request):
+        return httpx.Response(200, text="invalid JSON") if change == "json" else httpx.Response(200, json=report)
+
+    with pytest.raises(FileServerError, match="không hợp lệ"):
+        load_daily_carrier_report(FIRST, LAST, transport=httpx.MockTransport(respond))
+
+
+def test_tool_returns_server_authoritative_report_and_handles_failures(monkeypatch):
+    def fetch(first, last):
+        assert first == FIRST and last == LAST
+        return report_data()
+
+    monkeypatch.setattr(tools_module, "load_daily_carrier_report", fetch)
+    tool = tools_module.create_tools(date(2026, 10, 14), observations=[])[2]
+    result = tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
+    # Deliberately empty initial agent snapshot: report/PNG use server data together.
+    assert result["total_detections"] == 1
+    assert result["reference_date"] == "2026-10-14"
+
+    def fail(*args):
+        raise FileServerError("Không kết nối được file server.")
+
+    monkeypatch.setattr(tools_module, "load_daily_carrier_report", fail)
+    with pytest.raises(ToolException, match="file server"):
+        tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
+
+
+def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
+    monkeypatch.setattr(tools_module, "load_daily_carrier_report",
+                        lambda *args: pytest.fail("Mock must not call real file server"))
+    tool = tools_module.create_tools(date(2026, 10, 14), data_source="mock")[2]
+    report = tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
+    assert report["is_mock"] is True and report["chart_url"] is None
+    assert report["total_detections"] == sum(
+        s["possible_aircraft_carrier_count"] for s in report["daily_stats"]
+    )
+
+
+def test_graph_report_round_trip_returns_exact_chart_url_in_markdown(monkeypatch):
+    monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *args: report_data())
+    requests = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        assert "daily_carrier_report" in body["messages"][0]["content"]
+        if len(requests) == 1:
+            message = {"role": "assistant", "content": None, "tool_calls": [{
+                "id": "call_report", "type": "function", "function": {
+                    "name": "daily_carrier_report", "arguments": json.dumps({
+                        "observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat(),
+                    }),
+                },
+            }]}
+            reason = "tool_calls"
+        else:
+            result = json.loads(next(m["content"] for m in body["messages"] if m["role"] == "tool"))
+            assert result["total_detections"] == 1
+            message = {"role": "assistant", "content": f"1 lượt dự đoán.\n![Biểu đồ]({result['chart_url']})"}
+            reason = "stop"
+        return httpx.Response(200, json={
+            "id": "chatcmpl-test", "object": "chat.completion", "created": 0, "model": "test",
+            "choices": [{"index": 0, "message": message, "finish_reason": reason}],
+        })
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        model = ChatOpenAI(model="test", api_key="synthetic", http_client=client, max_retries=0)
+        result = build_agent(model=model, observations=[]).invoke({
+            "messages": [HumanMessage(content="Vẽ biểu đồ tàu sân bay từ 12 đến 14/10/2026.")],
+        })
+    assert len(requests) == 2
+    assert f"![Biểu đồ]({report_data()['chart_url']})" in result["messages"][-1].content

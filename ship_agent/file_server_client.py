@@ -2,10 +2,12 @@
 
 from datetime import date, datetime, timedelta
 from typing import Literal
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from file_server.carrier_reports import daily_carrier_report
 from file_server.loader import Observation
 from . import config
 
@@ -88,3 +90,67 @@ def load_observations(
         raise FileServerError("Không kết nối hoặc đọc được file server; kiểm tra server và FILE_SERVER_URL.") from exc
     except ValueError as exc:
         raise FileServerError("File server trả dữ liệu không hợp lệ hoặc thiếu trang.") from exc
+
+
+class DailyCarrierStat(BaseModel):
+    model_config = ConfigDict(strict=True)
+    date: str
+    possible_aircraft_carrier_count: int = Field(ge=0)
+
+
+class DailyCarrierReport(BaseModel):
+    model_config = ConfigDict(strict=True)
+    is_mock: Literal[False]
+    timezone: Literal["UTC"]
+    count_unit: Literal["detections"]
+    classification: Literal["aircraft_carrier"]
+    observed_from: str
+    observed_to: str
+    total_detections: int = Field(ge=0)
+    report_id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    daily_stats: list[DailyCarrierStat]
+    chart_url: str
+    coverage: dict
+
+
+def load_daily_carrier_report(
+    observed_from: date, observed_to: date, *, base_url: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict:
+    """Retrieve authoritative counts and a chart URL from the same server snapshot."""
+    try:
+        with httpx.Client(
+            base_url=(base_url or config.FILE_SERVER_URL).rstrip("/") + "/",
+            timeout=REQUEST_TIMEOUT, transport=transport, trust_env=False,
+        ) as client:
+            response = client.get("reports/daily-carriers", params={
+                "observed_from": observed_from.isoformat(),
+                "observed_to": observed_to.isoformat(),
+            })
+            response.raise_for_status()
+            report = DailyCarrierReport.model_validate(response.json()).model_dump()
+        expected_days = daily_carrier_report([], observed_from, observed_to)["daily_stats"]
+        if (report["observed_from"] != observed_from.isoformat()
+                or report["observed_to"] != observed_to.isoformat()
+                or [s["date"] for s in report["daily_stats"]] != [s["date"] for s in expected_days]
+                or sum(s["possible_aircraft_carrier_count"] for s in report["daily_stats"])
+                != report["total_detections"]):
+            raise ValueError("Report dates or total do not agree.")
+        url = urlsplit(report["chart_url"])
+        query = parse_qs(url.query)
+        if (url.scheme not in {"http", "https"} or not url.hostname
+                or url.username or url.password or url.fragment
+                or not url.path.endswith("/charts/daily-carriers.png")
+                or query != {"observed_from": [report["observed_from"]],
+                             "observed_to": [report["observed_to"]],
+                             "report_id": [report["report_id"]]}):
+            raise ValueError("Invalid report chart URL.")
+        return report
+    except httpx.TimeoutException as exc:
+        raise FileServerError("Hết thời gian chờ báo cáo từ file server.") from exc
+    except httpx.HTTPStatusError as exc:
+        raise FileServerError(f"File server trả HTTP {exc.response.status_code} khi tạo báo cáo.") from exc
+    except httpx.HTTPError as exc:
+        raise FileServerError("Không truy vấn được báo cáo từ file server.") from exc
+    except ValueError as exc:
+        raise FileServerError("File server trả báo cáo hoặc URL chart không hợp lệ.") from exc

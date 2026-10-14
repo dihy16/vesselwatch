@@ -51,7 +51,7 @@ def test_full_pagination_count_and_filter_before_search_pagination(monkeypatch):
         return load_observations(transport=httpx.MockTransport(respond))
 
     monkeypatch.setattr(tools_module, "load_observations", fetch)
-    count, search = tools_module.create_tools(date(2026, 10, 14))
+    count, search, _ = tools_module.create_tools(date(2026, 10, 14))
     assert [r.url.params["offset"] for r in requests] == ["0", "100"]
     dates = {"observed_from": "2026-10-13", "observed_to": "2026-10-13"}
     result = search.invoke({**dates, "min_length_m": 250, "limit": 2, "offset": 1})
@@ -107,7 +107,7 @@ def test_same_caption_ship_id_keeps_separate_images_in_tools(monkeypatch):
     rows = [{**row(i), "ship_id": "SAME_DETECTION"} for i in range(2)]
     rows[1]["classification"] = "not_aircraft_carrier"
     monkeypatch.setattr(tools_module, "load_observations", lambda: rows)
-    count, search = tools_module.create_tools()
+    count, search, _ = tools_module.create_tools()
     result = search.invoke({"ship_id": "SAME_DETECTION"})
     assert result["total"] == 2
     assert {o["observation_id"] for o in result["ships"]} == {"OBS_000", "OBS_001"}
@@ -119,7 +119,7 @@ def test_same_caption_ship_id_keeps_separate_images_in_tools(monkeypatch):
 
 def test_empty_date_range_returns_zero_counts(monkeypatch):
     monkeypatch.setattr(tools_module, "load_observations", lambda: [])
-    count, search = tools_module.create_tools()
+    count, search, _ = tools_module.create_tools()
     result = count.invoke({"observed_from": "2026-10-13", "observed_to": "2026-10-14"})
     assert [s["suspicious_ship_count"] for s in result["daily_stats"]] == [0, 0]
     assert search.invoke({})["total"] == 0
@@ -130,7 +130,7 @@ def test_mock_mode_never_uses_file_server(monkeypatch):
         raise AssertionError("Mock mode must not use file server")
 
     monkeypatch.setattr(tools_module, "load_observations", fail)
-    _, search = tools_module.create_tools(date(2026, 10, 13), data_source="mock")
+    _, search, _ = tools_module.create_tools(date(2026, 10, 13), data_source="mock")
     assert search.invoke({})["is_mock"] is True
     with pytest.raises(ValueError, match="data_source"):
         tools_module.create_tools(data_source="typo")

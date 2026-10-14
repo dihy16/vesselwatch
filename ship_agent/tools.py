@@ -8,7 +8,8 @@ from langchain_core.tools import ToolException, tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from .dates import DataSource, data_timezone, resolve_reference_date
-from .file_server_client import load_observations
+from file_server.carrier_reports import daily_carrier_report as aggregate_carriers
+from .file_server_client import FileServerError, load_daily_carrier_report, load_observations
 from .mock_data import build_observations
 
 DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
@@ -136,6 +137,29 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
 
     source_description = ("Dữ liệu và URL giả lập." if is_mock else
                           "Dữ liệu thật từ file server; mỗi ảnh Telegram là một tàu riêng.")
-    for query_tool in (count_ships, search_ships):
+    @tool(args_schema=CountShipsInput)
+    def daily_carrier_report(observed_from: str, observed_to: str) -> dict:
+        """Tạo báo cáo và biểu đồ PNG lượt dự đoán tàu sân bay theo từng ngày.
+
+        Dùng khi người dùng yêu cầu báo cáo/chart/biểu đồ tàu sân bay hoặc tàu khả nghi.
+        Chỉ đếm aircraft_carrier, không đếm toàn bộ tàu khả nghi. Đây là lượt
+        phát hiện từ từng ảnh, không phải số tàu duy nhất hoặc nhãn đã xác nhận.
+        Ngày từ caption, gồm cả hai đầu mốc, tối đa 366 ngày. Trả daily_stats,
+        total_detections và chart_url cho Markdown ảnh; không tự tạo URL.
+        Mock chỉ trả số liệu giả lập và chart_url=null, không có ảnh chart thật.
+        """
+        first, last = _date_range(observed_from, observed_to)
+        if not 0 <= (last - first).days < 366:
+            raise ToolException("Mỗi báo cáo có từ 1 đến 366 ngày.")
+        if is_mock:
+            result = aggregate_carriers(observations, first, last)
+            return {**result, **metadata, "chart_url": None}
+        try:
+            return {**load_daily_carrier_report(first, last),
+                    "reference_date": anchor.isoformat()}
+        except FileServerError as exc:
+            raise ToolException(str(exc)) from exc
+
+    for query_tool in (count_ships, search_ships, daily_carrier_report):
         query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"
-    return [count_ships, search_ships]
+    return [count_ships, search_ships, daily_carrier_report]

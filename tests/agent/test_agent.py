@@ -17,7 +17,7 @@ def test_chatopenai_graph_executes_both_tools_and_returns_to_model():
         body = json.loads(request.content)
         requests.append(body)
         if len(requests) == 1:
-            assert {t["function"]["name"] for t in body["tools"]} == {"count_ships", "search_ships"}
+            assert {t["function"]["name"] for t in body["tools"]} == {"count_ships", "search_ships", "daily_carrier_report"}
             message = {"role": "assistant", "content": None, "tool_calls": [
                 {"id": "call_count", "type": "function", "function": {
                     "name": "count_ships", "arguments": json.dumps({"observed_from": "2026-10-07", "observed_to": "2026-10-13"}),
