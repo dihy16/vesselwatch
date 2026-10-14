@@ -20,7 +20,7 @@ def write_json(path, value):
 def dataset(tmp_path):
     root = tmp_path / "images"
     root.mkdir()
-    telegram, items, predictions = [], [], []
+    telegram, predictions = [], []
     for index, score in enumerate([0.5, 0.1, None]):
         source_id = f"SCENE_{index}"
         name = f"photo_{index}.jpg"
@@ -31,24 +31,21 @@ def dataset(tmp_path):
                                     "- Dài / Rộng: 300(m)/60(m)\n"
                                     f"- Tàu: <b>{source_id}</b>",
                          "image": f"telegram_data/images/{name}"})
-        # Colab crop paths are intentionally different from Telegram paths.
-        path = f"/content/crops/crop_{index}.png"
-        items.append({"image_path": path, "source_id": source_id, "sha256": f"{index:064x}",
-                      "split": "test", "label": 0})
         if score is not None:
-            predictions.append({"image_path": path, "score": score, "label": 0})
-    run = tmp_path / "run"
-    write_json(run / "originals_manifest.json", {"items": items})
-    write_json(run / "offline_cloud_crop_staged/report.json", {
-        "model": "wide_resnet50_2", "seed_predictions": {"42": {"test": predictions}},
-        "predictions": {"test": [{"score": 1.0}]},
+            predictions.append({"image_path": f"/data2/DATA/telegram_data/images/{name}",
+                                "source_id": source_id, "carrier_probability": score,
+                                "predicted_aircraft_carrier": index == 0})
+    prediction_path = tmp_path / "predictions.json"
+    write_json(prediction_path, {
+        "schema_version": 2, "runs": {"example_run": {"report_path": "/unused/report.json"}},
+        "mining_threshold": 0.95, "predictions": predictions,
     })
-    settings = DataSettings(tmp_path / "telegram.json", root, run)
+    settings = DataSettings(tmp_path / "telegram.json", root, prediction_path)
     write_json(settings.telegram_path, telegram)
     return settings
 
 
-def test_observation_contract_source_join_dates_and_unknown(dataset):
+def test_observation_contract_filename_join_dates_and_unknown(dataset):
     store = load_store(dataset)
     rows = {o.images[0].caption.split("<b>")[1].split("</b>")[0]: o for o in store.observations}
     assert rows["SCENE_0"].classification == "aircraft_carrier"
@@ -75,6 +72,8 @@ def test_api_pagination_filters_details_images_and_health(dataset):
         assert health["prediction_count"] == 2 and health["unknown_count"] == 1
         assert health["is_mock"] is False
         assert health["timezone"] == "UTC"
+        assert "threshold" not in health
+        assert health["runs"] == ["example_run"]
         first = client.get("/observations", params={"limit": 1}).json()
         second = client.get("/observations", params={"limit": 1, "offset": 1}).json()
         assert first["total"] == 3
@@ -110,7 +109,10 @@ def test_same_detection_multiple_images_are_separate_ships(dataset):
     write_json(dataset.telegram_path, rows)
     store = load_store(dataset)
     assert len(store.observations) == 4
-    assert store.summary["prediction_count"] == 3
+    assert store.summary["prediction_count"] == 2
+    other = next(o for o in store.observations if o.images[0].caption == rows[0]["caption"]
+                 and o.confidence is None)
+    assert other.classification == "unknown"
     assert store.summary["skipped"]["duplicate_image"] == 1
 
 
@@ -123,24 +125,20 @@ def test_skipped_records_are_visible_in_health(dataset):
                                            duplicate_image=0, unsupported_image=0)
 
 
-@pytest.mark.parametrize("change", ["score", "split", "label", "duplicate_source", "seed"])
-def test_reject_inconsistent_or_ambiguous_saved_predictions(dataset, change):
-    report_path = dataset.saved_run_dir / "offline_cloud_crop_staged/report.json"
-    manifest_path = dataset.saved_run_dir / "originals_manifest.json"
-    report = json.loads(report_path.read_text())
-    manifest = json.loads(manifest_path.read_text())
+@pytest.mark.parametrize("change", ["score", "label", "duplicate_image", "missing_image", "shape"])
+def test_reject_invalid_or_ambiguous_predictions(dataset, change):
+    report = json.loads(dataset.predictions_path.read_text())
     if change == "score":
-        report["seed_predictions"]["42"]["test"][0]["score"] = float("nan")
-    elif change == "split":
-        manifest["items"][0]["split"] = "train"
+        report["predictions"][0]["carrier_probability"] = float("nan")
     elif change == "label":
-        report["seed_predictions"]["42"]["test"][0]["label"] = 1
-    elif change == "duplicate_source":
-        manifest["items"][1]["source_id"] = "SCENE_0"
+        report["predictions"][0]["predicted_aircraft_carrier"] = "false"
+    elif change == "duplicate_image":
+        report["predictions"].append(report["predictions"][0])
+    elif change == "missing_image":
+        report["predictions"][0].pop("image_path")
     else:
-        report["seed_predictions"] = {}
-    write_json(report_path, report)
-    write_json(manifest_path, manifest)
+        report["predictions"] = {}
+    write_json(dataset.predictions_path, report)
     with pytest.raises(ValueError):
         with TestClient(create_app(dataset)):
             pass
@@ -177,15 +175,14 @@ def test_settings_from_config_file(dataset, monkeypatch):
     for name, value in {
         "TELEGRAM_METADATA_PATH": dataset.telegram_path,
         "TELEGRAM_IMAGE_ROOT": dataset.image_root,
-        "SAVED_RUN_DIR": dataset.saved_run_dir,
-        "SAVED_RUN_SEED": 42,
+        "PREDICTIONS_PATH": dataset.predictions_path,
         "DATA_API_BASE_URL": "http://mid:8001/",
     }.items():
         monkeypatch.setattr(config, name, value)
     assert DataSettings.from_config().base_url == "http://mid:8001"
     assert load_store(DataSettings.from_config()).observations[0].ship_url.startswith("http://mid:8001/")
-    monkeypatch.setattr(config, "SAVED_RUN_DIR", "")
-    with pytest.raises(ValueError, match="SAVED_RUN_DIR.*config.py"):
+    monkeypatch.setattr(config, "PREDICTIONS_PATH", "")
+    with pytest.raises(ValueError, match="PREDICTIONS_PATH.*config.py"):
         DataSettings.from_config()
 
 

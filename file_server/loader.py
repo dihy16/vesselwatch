@@ -1,4 +1,4 @@
-"""Join Telegram observations and saved crop predictions on detection IDs."""
+"""Join Telegram observations and exported predictions by image filename."""
 
 from dataclasses import dataclass
 import hashlib
@@ -6,7 +6,6 @@ import json
 import math
 import mimetypes
 from pathlib import Path
-import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -58,38 +57,43 @@ def read_records(path: Path) -> list[dict]:
     return records
 
 
-def load_predictions(run_dir: Path, seed: int) -> tuple[dict[str, float], str]:
-    """Validate saved predictions against their original manifest, as in the demo."""
-    manifest = read_json(run_dir / "originals_manifest.json")
-    report = read_json(run_dir / "offline_cloud_crop_staged" / "report.json")
-    items = manifest["items"]
-    by_path = {item["image_path"]: item for item in items}
-    if len(by_path) != len(items):
-        raise ValueError("Saved manifest has duplicate image paths.")
-    splits = report.get("seed_predictions", {}).get(str(seed))
-    if not isinstance(splits, dict):
-        raise ValueError(f"Saved run has no predictions for seed {seed}.")
+@dataclass(frozen=True)
+class Prediction:
+    score: float
+    classification: Literal["aircraft_carrier", "not_aircraft_carrier"]
+
+
+def image_filename(value: object) -> str:
+    """Use the same filename key for exported and Telegram image paths."""
+    return value.replace("\\", "/").rsplit("/", 1)[-1] if isinstance(value, str) else ""
+
+
+def load_predictions(path: Path) -> tuple[dict[str, Prediction], dict]:
+    """Read exported scores and labels without recomputing either."""
+    report = read_json(path)
+    if not isinstance(report, dict) or not isinstance(report.get("predictions"), list):
+        raise ValueError(f"{path} must contain an object with a predictions array.")
     predictions = {}
-    hashes = set()
-    for split, rows in splits.items():
-        for row in rows:
-            item = by_path.get(row.get("image_path"))
-            score = row.get("score")
-            if (item is None or item.get("split") != split or item.get("label") != row.get("label")
-                    or type(score) not in (int, float) or not math.isfinite(score)
-                    or not 0 <= score <= 1):
-                raise ValueError("Saved prediction does not match its original crop manifest.")
-            source_id = item.get("source_id")
-            digest = item.get("sha256")
-            if not isinstance(source_id, str) or not source_id.strip():
-                raise ValueError("Predicted crop has no source_id.")
-            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-                raise ValueError("Predicted crop has an invalid SHA-256.")
-            if digest in hashes or source_id in predictions:
-                raise ValueError(f"Ambiguous saved prediction for source_id {source_id}.")
-            hashes.add(digest)
-            predictions[source_id] = float(score)
-    return predictions, f"{report['model']} / seed {seed} / {run_dir.name}"
+    for index, row in enumerate(report["predictions"]):
+        if not isinstance(row, dict):
+            raise ValueError(f"Invalid prediction at index {index} in {path}.")
+        name = image_filename(row.get("image_path"))
+        score = row.get("carrier_probability")
+        label = row.get("predicted_aircraft_carrier")
+        if (not name or name in {".", ".."}
+                or type(score) not in (int, float) or not math.isfinite(score)
+                or not 0 <= score <= 1 or type(label) is not bool):
+            raise ValueError(f"Invalid prediction for {name or index} in {path}: "
+                             "expected image_path, probability in [0, 1], and boolean label.")
+        if name in predictions:
+            raise ValueError(f"Duplicate prediction for image {name} in {path}.")
+        predictions[name] = Prediction(
+            float(score), "aircraft_carrier" if label else "not_aircraft_carrier",
+        )
+    # Provenance only: these paths are never opened by the file server.
+    metadata = {"runs": list(report.get("runs", {})),
+                "ensemble_method": report.get("ensemble_method")}
+    return predictions, metadata
 
 
 def registered_image(root: Path, name: str) -> Path | None:
@@ -110,7 +114,7 @@ class ObservationStore:
 
 
 def load_store(settings: DataSettings) -> ObservationStore:
-    predictions, model = load_predictions(settings.saved_run_dir, settings.seed)
+    predictions, prediction_metadata = load_predictions(settings.predictions_path)
     root = settings.image_root.resolve()
     if not root.is_dir():
         raise ValueError(f"Telegram image directory does not exist: {root}")
@@ -129,7 +133,7 @@ def load_store(settings: DataSettings) -> ObservationStore:
         source_id = match.group(1).strip()
         # Telegram exports use telegram_data/images/<filename>, while root is images/.
         value = message.get("image")
-        name = value.replace("\\", "/").rsplit("/", 1)[-1] if isinstance(value, str) else ""
+        name = image_filename(value)
         if not name or registered_image(root, name) is None:
             counts["missing_image"] += 1
             continue
@@ -146,9 +150,9 @@ def load_store(settings: DataSettings) -> ObservationStore:
         try:
             metadata = parse_caption(caption)
             captured = metadata.observed_at
-            score = predictions.get(source_id)
-            classification = ("unknown" if score is None else
-                              "aircraft_carrier" if score >= 0.5 else "not_aircraft_carrier")
+            prediction = predictions.get(name)
+            score = prediction.score if prediction is not None else None
+            classification = prediction.classification if prediction is not None else "unknown"
             # Filename identity makes separate Telegram images separate ships.
             token = hashlib.sha256(name.encode("utf-8")).hexdigest()
             ship_id, image_id = f"SHIP_{token}", f"IMG_{token}"
@@ -173,5 +177,5 @@ def load_store(settings: DataSettings) -> ObservationStore:
     matched = sum(observation.confidence is not None for observation in observations)
     summary = {"observation_count": len(observations), "prediction_count": matched,
                "unknown_count": len(observations) - matched, "skipped": counts,
-               "model": model, "seed": settings.seed, "threshold": 0.5}
+               **prediction_metadata}
     return ObservationStore(observations, {o.ship_id: o for o in observations}, images, root, summary)

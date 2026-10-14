@@ -9,10 +9,8 @@ from urllib.parse import urlsplit
 TELEGRAM_METADATA_PATH = Path("/data2/DATA/telegram_data/data.json")
 TELEGRAM_IMAGE_ROOT = Path("/data2/DATA/telegram_data/images")
 
-# Set to the run folder containing originals_manifest.json and
-# offline_cloud_crop_staged/report.json. No checkpoint is needed.
-SAVED_RUN_DIR = ""
-SAVED_RUN_SEED = 42
+# Set to the JSON file containing the exported predictions array.
+PREDICTIONS_PATH = ""
 
 # URL reachable by the image viewer. Match the Uvicorn port to this URL.
 DATA_API_BASE_URL = "http://127.0.0.1:8001"
@@ -22,9 +20,8 @@ DATA_API_BASE_URL = "http://127.0.0.1:8001"
 class DataSettings:
     telegram_path: Path
     image_root: Path
-    saved_run_dir: Path
+    predictions_path: Path
     base_url: str = "http://127.0.0.1:8001"
-    seed: int = 42
 
     def __post_init__(self):
         url = urlsplit(self.base_url)
@@ -42,7 +39,6 @@ class DataSettings:
         return cls(
             telegram_path=required_path("TELEGRAM_METADATA_PATH", TELEGRAM_METADATA_PATH),
             image_root=required_path("TELEGRAM_IMAGE_ROOT", TELEGRAM_IMAGE_ROOT),
-            saved_run_dir=required_path("SAVED_RUN_DIR", SAVED_RUN_DIR),
+            predictions_path=required_path("PREDICTIONS_PATH", PREDICTIONS_PATH),
             base_url=DATA_API_BASE_URL.rstrip("/"),
-            seed=SAVED_RUN_SEED,
         )
