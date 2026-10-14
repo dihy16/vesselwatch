@@ -123,7 +123,7 @@ def load_store(settings: DataSettings) -> ObservationStore:
     images = {}
     seen = {}
     counts = dict(missing_detection_id=0, missing_image=0,
-                  duplicate_image=0, unsupported_image=0)
+                  duplicate_image=0, unsupported_image=0, missing_prediction=0)
     for message in read_records(settings.telegram_path):
         caption = message.get("caption", "")
         cleaned = clean_caption(caption) if isinstance(caption, str) else ""
@@ -148,12 +148,15 @@ def load_store(settings: DataSettings) -> ObservationStore:
             counts["duplicate_image"] += 1
             continue
         seen[name] = source_id
+        prediction = predictions.get(name)
+        if prediction is None:
+            counts["missing_prediction"] += 1
+            continue
         try:
             metadata = parse_caption(caption)
             captured = metadata.observed_at
-            prediction = predictions.get(name)
-            score = prediction.score if prediction is not None else None
-            classification = prediction.classification if prediction is not None else "unknown"
+            score = prediction.score
+            classification = prediction.classification
             # Filename identity makes separate Telegram images separate ships.
             token = hashlib.sha256(name.encode("utf-8")).hexdigest()
             ship_id, image_id = metadata.source_id, f"IMG_{token}"

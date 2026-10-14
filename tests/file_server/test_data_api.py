@@ -45,16 +45,16 @@ def dataset(tmp_path):
     return settings
 
 
-def test_observation_contract_filename_join_dates_and_unknown(dataset):
+def test_observation_contract_filename_join_dates_and_predictions_only(dataset):
     store = load_store(dataset)
     rows = {o.images[0].caption.split("<b>")[1].split("</b>")[0]: o for o in store.observations}
     assert rows["SCENE_0"].classification == "aircraft_carrier"
     assert rows["SCENE_0"].confidence == 0.5
     assert rows["SCENE_1"].classification == "not_aircraft_carrier"
     assert rows["SCENE_1"].confidence == 0.1
-    assert rows["SCENE_2"].classification == "unknown"
-    assert rows["SCENE_2"].confidence is None
-    assert len({o.ship_id for o in rows.values()}) == 3
+    assert "SCENE_2" not in rows
+    assert store.summary["skipped"]["missing_prediction"] == 1
+    assert len({o.ship_id for o in rows.values()}) == 2
     assert all(observation.ship_id == source_id for source_id, observation in rows.items())
     for observation in rows.values():
         assert set(observation.model_dump()) == {
@@ -69,15 +69,15 @@ def test_observation_contract_filename_join_dates_and_unknown(dataset):
 def test_api_pagination_filters_details_images_and_health(dataset):
     with TestClient(create_app(dataset)) as client:
         health = client.get("/health").json()
-        assert health["observation_count"] == 3
-        assert health["prediction_count"] == 2 and health["unknown_count"] == 1
+        assert health["observation_count"] == 2
+        assert health["prediction_count"] == 2 and health["unknown_count"] == 0
         assert health["is_mock"] is False
         assert health["timezone"] == "UTC"
         assert "threshold" not in health
         assert health["runs"] == ["example_run"]
         first = client.get("/observations", params={"limit": 1}).json()
         second = client.get("/observations", params={"limit": 1, "offset": 1}).json()
-        assert first["total"] == 3
+        assert first["total"] == 2
         observation = first["observations"][0]
         assert observation["ship_id"] != second["observations"][0]["ship_id"]
         assert client.get(observation["ship_url"]).json() == observation
@@ -85,9 +85,9 @@ def test_api_pagination_filters_details_images_and_health(dataset):
         assert image.status_code == 200
         assert image.headers["content-type"] == "image/jpeg"
         assert image.content.startswith(b"synthetic-image-")
-        assert client.get("/observations?observed_from=2026-10-13&observed_to=2026-10-13").json()["total"] == 3
+        assert client.get("/observations?observed_from=2026-10-13&observed_to=2026-10-13").json()["total"] == 2
         assert client.get("/observations?observed_from=2026-10-14").json()["observations"] == []
-        assert client.get("/observations?offset=100").json()["total"] == 3
+        assert client.get("/observations?offset=100").json()["total"] == 2
         assert client.get("/ships/unknown").status_code == 404
         assert client.get("/images/photo_0.jpg").status_code == 404
         assert client.get("/images/..%2Ftracking.json").status_code == 404
@@ -106,14 +106,18 @@ def test_same_detection_multiple_images_are_separate_ships(dataset):
     rows = json.loads(dataset.telegram_path.read_text(encoding="utf-8"))
     rows.append({**rows[0], "image": "telegram_data/images/another.jpg"})
     (dataset.image_root / "another.jpg").write_bytes(b"another")
+    report = json.loads(dataset.predictions_path.read_text(encoding="utf-8"))
+    report["predictions"].append({"image_path": "another.jpg", "carrier_probability": 0.2,
+                                  "predicted_aircraft_carrier": False})
+    write_json(dataset.predictions_path, report)
     rows.append(rows[0])
     write_json(dataset.telegram_path, rows)
     store = load_store(dataset)
-    assert len(store.observations) == 4
-    assert store.summary["prediction_count"] == 2
+    assert len(store.observations) == 3
+    assert store.summary["prediction_count"] == 3
     other = next(o for o in store.observations if o.images[0].caption == rows[0]["caption"]
-                 and o.confidence is None)
-    assert other.classification == "unknown"
+                 and o.confidence == 0.2)
+    assert other.classification == "not_aircraft_carrier"
     assert store.summary["skipped"]["duplicate_image"] == 1
     same_id = [o for o in store.observations if o.ship_id == "SCENE_0"]
     assert len(same_id) == 2
@@ -130,7 +134,8 @@ def test_skipped_records_are_visible_in_health(dataset):
     write_json(dataset.telegram_path, rows)
     store = load_store(dataset)
     assert store.summary["skipped"] == dict(missing_detection_id=1, missing_image=1,
-                                           duplicate_image=0, unsupported_image=0)
+                                           duplicate_image=0, unsupported_image=0,
+                                           missing_prediction=1)
 
 
 @pytest.mark.parametrize("change", ["score", "label", "duplicate_image", "missing_image", "shape"])

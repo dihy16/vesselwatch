@@ -64,7 +64,9 @@ Ghép tên file trong prediction `image_path` với tên file trong trường `i
 metadata Telegram. Prediction trùng tên ảnh, score không hữu hạn/ngoài [0, 1] hoặc
 nhãn không phải boolean gây lỗi khởi động. `carrier_probability` được giữ nguyên;
 `predicted_aircraft_carrier=true` là `aircraft_carrier`, false là `not_aircraft_carrier`;
-không có prediction là `unknown`, `confidence = null`. `confidence` giữ carrier
+ảnh không có prediction bị bỏ qua, không đưa vào danh sách hay số đếm của tools.
+`/health.skipped.missing_prediction` cho biết số ảnh bị bỏ qua vì lý do này.
+`confidence` giữ carrier
 score nguyên gốc: 0.1 nghĩa là score tàu sân bay 10%, không phải độ tin cậy nhãn âm.
 Server nạp toàn bộ `predictions`, giữ score và cờ `predicted_aircraft_carrier` đã lưu;
 không áp ngưỡng hoặc lọc theo `review_tier`, `mining_threshold` hay `positive_count`.

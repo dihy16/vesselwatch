@@ -40,7 +40,7 @@ def build_agent(
     confidence_note = ("Với danh sách tàu, đưa ship_url và độ tin cậy nếu có."
                        if data_source == "mock" else
                        "Với danh sách tàu, đưa ship_url và carrier score nếu có. confidence là score "
-                       "tàu sân bay, không phải độ tin cậy của nhãn âm; null là chưa có prediction.")
+                       "tàu sân bay, không phải độ tin cậy của nhãn âm. File server chỉ trả ảnh có prediction.")
     prompt = SystemMessage(content=f"""Bạn là trợ lý truy vấn dữ liệu tàu khả nghi, trả lời bằng tiếng Việt.
 Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(data_source)}.
 {source_note}
