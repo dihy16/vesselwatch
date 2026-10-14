@@ -7,6 +7,7 @@ import math
 import mimetypes
 from pathlib import Path
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -155,11 +156,11 @@ def load_store(settings: DataSettings) -> ObservationStore:
             classification = prediction.classification if prediction is not None else "unknown"
             # Filename identity makes separate Telegram images separate ships.
             token = hashlib.sha256(name.encode("utf-8")).hexdigest()
-            ship_id, image_id = f"SHIP_{token}", f"IMG_{token}"
+            ship_id, image_id = metadata.source_id, f"IMG_{token}"
             base = settings.base_url.rstrip("/")
             observation = Observation(
                 observation_id=f"OBS_{token}", ship_id=ship_id,
-                ship_url=f"{base}/ships/{ship_id}",
+                ship_url=f"{base}/ships/{quote(ship_id, safe='')}?observation_id=OBS_{token}",
                 observed_date=captured.date().isoformat(), observed_at=captured.isoformat(),
                 length_m=metadata.length_m, width_m=metadata.width_m,
                 position=Position(latitude=metadata.latitude, longitude=metadata.longitude),
@@ -178,4 +179,10 @@ def load_store(settings: DataSettings) -> ObservationStore:
     summary = {"observation_count": len(observations), "prediction_count": matched,
                "unknown_count": len(observations) - matched, "skipped": counts,
                **prediction_metadata}
-    return ObservationStore(observations, {o.ship_id: o for o in observations}, images, root, summary)
+    # A caption ID may occur in several images; direct links select the exact observation.
+    ships = {}
+    for observation in observations:
+        previous = ships.get(observation.ship_id)
+        if previous is None or observation.observed_at > previous.observed_at:
+            ships[observation.ship_id] = observation
+    return ObservationStore(observations, ships, images, root, summary)

@@ -269,6 +269,11 @@ Trả `total` trước phân trang, `filters`, `ships` gồm ID tàu và lần q
 `confidence` (carrier score với dữ liệu thật, null nếu chưa có prediction),
 `images` gồm URL/chú thích/MIME type.
 
+Với dữ liệu thật, `ship_id` giữ nguyên tên sau `- Tàu:` trong caption Telegram,
+không sinh ID tàu từ tên ảnh. Mỗi ảnh vẫn được đếm và trả về riêng khi trùng tên
+tàu; `observation_id` phân biệt các ảnh. `ship_url` có tham số `observation_id`
+để mở đúng bản ghi; `/ships/{ship_id}` không có tham số trả lần quan sát mới nhất.
+
 `is_mock`, `reference_date`, `timezone` được trả kèm. Agent thật trả `is_mock=false`
 và `timezone="UTC"`. `reference_date` chỉ là mốc giải thích câu hỏi, không đổi ngày
 observations. Lỗi kết nối/timeout/HTTP hoặc response sai được báo lỗi tool, không

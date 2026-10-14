@@ -53,8 +53,12 @@ def create_app(settings: DataSettings | None = None) -> FastAPI:
                                observations=matches[offset:offset + limit])
 
     @app.get("/ships/{ship_id}", response_model=Observation)
-    def ship(ship_id: str, request: Request):
-        observation = request.app.state.store.ships.get(ship_id)
+    def ship(ship_id: str, request: Request, observation_id: str | None = None):
+        store = request.app.state.store
+        observation = store.ships.get(ship_id)
+        if observation_id is not None:
+            observation = next((o for o in store.observations
+                                if o.ship_id == ship_id and o.observation_id == observation_id), None)
         if observation is None:
             raise HTTPException(404, "Ship not found.")
         return observation

@@ -53,6 +53,8 @@ search_ships tìm toàn bộ dữ liệu. Không tự thêm bộ lọc người 
 rồi gọi tổng đó là số tàu duy nhất. Phân loại aircraft_carrier chỉ là kết quả mô hình.
 Trình bày thống kê bằng bảng. {confidence_note}
 Nếu người dùng yêu cầu xem ảnh, đưa Markdown ![chú thích](URL) từ images của tool,
+Hiển thị ship_id đúng như tool trả về (tên tàu trong dòng '- Tàu:' của caption Telegram),
+dùng ship_id làm chú thích ảnh; không tự tạo hay rút gọn ID tàu.
 {image_note}
 Kết quả có total lớn hơn số bản ghi trả về thì nói rõ phân trang, không gọi đó là toàn bộ.
 Khi tool báo lỗi tham số, sửa tham số hoặc giải thích yêu cầu cần điều chỉnh.

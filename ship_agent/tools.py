@@ -25,7 +25,7 @@ class SearchShipsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     observed_from: DateString | None = None
     observed_to: DateString | None = None
-    ship_id: str | None = Field(default=None, description="ID tàu chính xác, ví dụ SHIP_001.")
+    ship_id: str | None = Field(default=None, description="Tên tàu chính xác từ dòng '- Tàu:' trong caption Telegram (mock: SHIP_001).")
     min_length_m: float | None = Field(default=None, ge=0)
     max_length_m: float | None = Field(default=None, ge=0)
     min_width_m: float | None = Field(default=None, ge=0)
@@ -67,7 +67,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             day = date.fromisoformat(observation["observed_date"])
             if (first and day < first) or (last and day > last):
                 continue
-            key = (day, observation["ship_id"]) if per_day else observation["ship_id"]
+            identity = observation["ship_id"] if is_mock else observation["observation_id"]
+            key = (day, identity) if per_day else identity
             if key not in latest or observation["observed_at"] > latest[key]["observed_at"]:
                 latest[key] = observation
         return list(latest.values())
@@ -78,6 +79,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
 
         Ngày YYYY-MM-DD, gồm cả hai đầu mốc, tối đa 366 ngày mỗi lần gọi.
         Đếm ID tàu duy nhất trong ngày, dùng phân loại của lần quan sát cuối ngày.
+        Với dữ liệu thật, mỗi ảnh Telegram được đếm riêng dù trùng tên tàu trong caption.
         aircraft_carrier là kết quả mô hình, không phải xác nhận thực tế.
         Ngày không có quan sát trả 0. Lỗi nguồn dữ liệu được báo lỗi, không tính là 0.
         """
@@ -111,6 +113,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         Ngày YYYY-MM-DD và kích thước mét, gồm cả hai đầu mốc; bộ lọc có thể bỏ qua.
         Chọn lần quan sát mới nhất của mỗi tàu trong khoảng ngày TRƯỚC khi lọc
         kích thước/phân loại. Dùng ship_id để xem riêng một tàu. Có phân trang.
+        Với dữ liệu thật, mỗi ảnh là một kết quả riêng; ship_id lấy từ caption Telegram.
         confidence là carrier score; null nếu chưa có prediction.
         """
         first, last = _date_range(observed_from, observed_to)

@@ -77,6 +77,20 @@ def test_source_failure_is_a_tool_exception(monkeypatch):
             query_tool.invoke(arguments)
 
 
+def test_same_caption_ship_id_keeps_separate_images_in_tools(monkeypatch):
+    rows = [{**row(i), "ship_id": "SAME_DETECTION"} for i in range(2)]
+    rows[1]["classification"] = "not_aircraft_carrier"
+    monkeypatch.setattr(tools_module, "load_observations", lambda first, last: rows)
+    count, search = tools_module.create_tools()
+    result = search.invoke({"ship_id": "SAME_DETECTION"})
+    assert result["total"] == 2
+    assert {o["observation_id"] for o in result["ships"]} == {"OBS_000", "OBS_001"}
+    assert search.invoke({"classification": "aircraft_carrier"})["total"] == 1
+    stats = count.invoke({"observed_from": "2026-10-13", "observed_to": "2026-10-13"})
+    assert stats["daily_stats"] == [{"date": "2026-10-13", "suspicious_ship_count": 2,
+                                     "possible_aircraft_carrier_count": 1}]
+
+
 def test_empty_date_range_returns_zero_counts(monkeypatch):
     monkeypatch.setattr(tools_module, "load_observations", lambda first, last: [])
     count, search = tools_module.create_tools()

@@ -55,6 +55,7 @@ def test_observation_contract_filename_join_dates_and_unknown(dataset):
     assert rows["SCENE_2"].classification == "unknown"
     assert rows["SCENE_2"].confidence is None
     assert len({o.ship_id for o in rows.values()}) == 3
+    assert all(observation.ship_id == source_id for source_id, observation in rows.items())
     for observation in rows.values():
         assert set(observation.model_dump()) == {
             "observation_id", "ship_id", "ship_url", "observed_date", "observed_at",
@@ -114,6 +115,13 @@ def test_same_detection_multiple_images_are_separate_ships(dataset):
                  and o.confidence is None)
     assert other.classification == "unknown"
     assert store.summary["skipped"]["duplicate_image"] == 1
+    same_id = [o for o in store.observations if o.ship_id == "SCENE_0"]
+    assert len(same_id) == 2
+    assert len({o.ship_url for o in same_id}) == 2
+    with TestClient(create_app(dataset)) as client:
+        for observation in same_id:
+            assert client.get(observation.ship_url).json() == observation.model_dump()
+        assert client.get("/ships/SCENE_0?observation_id=missing").status_code == 404
 
 
 def test_skipped_records_are_visible_in_health(dataset):

@@ -87,7 +87,8 @@ def test_join_uses_filename_and_does_not_share_score_between_same_detection(tmp_
     metadata_path.write_text(json.dumps(messages), encoding="utf-8")
     report_path = write_report(tmp_path, [prediction(), prediction("other.jpg", 0.97, True)])
     store = load_store(DataSettings(metadata_path, root, report_path))
-    assert len(store.ships) == 3
+    assert len(store.observations) == 3
+    assert all(o.ship_id == "SAME_DETECTION" for o in store.observations)
     by_name = {store.images[o.images[0].image_id][0]: o for o in store.observations}
     assert by_name["photo.jpg"].confidence == 0.8
     assert by_name["photo.jpg"].classification == "not_aircraft_carrier"
