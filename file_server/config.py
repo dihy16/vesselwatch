@@ -10,7 +10,7 @@ TELEGRAM_METADATA_PATH = Path("/data2/DATA/telegram_data/data.json")
 TELEGRAM_IMAGE_ROOT = Path("/data2/DATA/telegram_data/images")
 
 # Set to the JSON file containing the exported predictions array.
-PREDICTIONS_PATH = ""
+PREDICTIONS_PATH = "data/predictions.json"
 
 # URL reachable by the image viewer. Match the Uvicorn port to this URL.
 DATA_API_BASE_URL = "http://127.0.0.1:8001"
