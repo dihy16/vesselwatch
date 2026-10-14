@@ -79,18 +79,17 @@ def test_graph_returns_invalid_tool_input_to_model_for_correction():
     assert result["messages"][-1].content == "Limit tối đa là 100."
 
 
-def test_default_real_agent_builds_without_fetching_and_reports_source_failure(monkeypatch):
+def test_default_real_agent_preloads_once_and_reuses_snapshot(monkeypatch):
     from ship_agent import tools as tools_module
-    from ship_agent.file_server_client import FileServerError
 
     fetches = []
     requests = []
 
-    def unavailable(first, last):
-        fetches.append((first, last))
-        raise FileServerError("Không kết nối được file server.")
+    def available():
+        fetches.append((None, None))
+        return []
 
-    monkeypatch.setattr(tools_module, "load_observations", unavailable)
+    monkeypatch.setattr(tools_module, "load_observations", available)
 
     def respond(request):
         body = json.loads(request.content)
@@ -107,9 +106,9 @@ def test_default_real_agent_builds_without_fetching_and_reports_source_failure(m
             }]}
             reason = "tool_calls"
         else:
-            errors = [m for m in body["messages"] if m["role"] == "tool"]
-            assert len(errors) == 1 and "Không kết nối" in errors[0]["content"]
-            message = {"role": "assistant", "content": "Chưa truy vấn được file server."}
+            results = [m for m in body["messages"] if m["role"] == "tool"]
+            assert len(results) == 1 and json.loads(results[0]["content"])["total"] == 0
+            message = {"role": "assistant", "content": "Không có tàu trong dữ liệu."}
             reason = "stop"
         return httpx.Response(200, json={
             "id": "chatcmpl-mock", "object": "chat.completion", "created": 0,
@@ -121,8 +120,8 @@ def test_default_real_agent_builds_without_fetching_and_reports_source_failure(m
         model = ChatOpenAI(model="gpt-4.1-mini", api_key="mock-key-not-real",
                            http_client=client, max_retries=0)
         graph = build_agent(model=model, reference_date=date(2026, 10, 13))
-        assert fetches == []
+        assert fetches == [(None, None)]
         result = graph.invoke({"messages": [HumanMessage(content="Liệt kê tàu.")]})
     assert fetches == [(None, None)]
     assert len(requests) == 2
-    assert result["messages"][-1].content == "Chưa truy vấn được file server."
+    assert result["messages"][-1].content == "Không có tàu trong dữ liệu."

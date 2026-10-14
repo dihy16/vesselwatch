@@ -17,9 +17,10 @@ from .tools import create_tools
 def build_agent(
     *, model: ChatOpenAI | None = None, reference_date: date | None = None,
     data_source: DataSource = "file_server",
+    observations: list[dict] | None = None,
 ):
     reference_date = resolve_reference_date(reference_date, data_source)
-    tools = create_tools(reference_date, data_source=data_source)
+    tools = create_tools(reference_date, data_source=data_source, observations=observations)
     if model is None:
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("Chưa có OPENAI_API_KEY. Hãy cấu hình .env hoặc chạy --mock-tools.")

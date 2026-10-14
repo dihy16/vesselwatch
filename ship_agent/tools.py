@@ -8,7 +8,7 @@ from langchain_core.tools import ToolException, tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from .dates import DataSource, data_timezone, resolve_reference_date
-from .file_server_client import FileServerError, load_observations
+from .file_server_client import load_observations
 from .mock_data import build_observations
 
 DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
@@ -46,24 +46,20 @@ def _date_range(start: str | None, end: str | None) -> tuple[date | None, date |
     return first, last
 
 
-def create_tools(reference_date: date | None = None, *, data_source: DataSource = "file_server"):
-    """Create tools without HTTP calls; fetch real observations when a tool runs."""
+def create_tools(reference_date: date | None = None, *, data_source: DataSource = "file_server",
+                 observations: list[dict] | None = None):
+    """Load a complete snapshot at creation, or reuse a preloaded server snapshot."""
     anchor = resolve_reference_date(reference_date, data_source)
     is_mock = data_source == "mock"
-    mock_observations = build_observations(anchor) if is_mock else None
+    if is_mock:
+        observations = build_observations(anchor)
+    elif observations is None:
+        observations = load_observations()
     metadata = {"is_mock": is_mock, "reference_date": anchor.isoformat(), "timezone": data_timezone(data_source)}
-
-    def read_observations(first, last):
-        if is_mock:
-            return mock_observations
-        try:
-            return load_observations(first, last)
-        except FileServerError as exc:
-            raise ToolException(str(exc)) from exc
 
     def latest_in_range(first, last, per_day=False):
         latest = {}
-        for observation in read_observations(first, last):
+        for observation in observations:
             day = date.fromisoformat(observation["observed_date"])
             if (first and day < first) or (last and day > last):
                 continue
@@ -143,6 +139,3 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
     for query_tool in (count_ships, search_ships):
         query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"
     return [count_ships, search_ships]
-
-
-count_ships, search_ships = create_tools()

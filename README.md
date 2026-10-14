@@ -278,8 +278,12 @@ tàu; `observation_id` phân biệt các ảnh. `ship_url` có tham số `observ
 
 `is_mock`, `reference_date`, `timezone` được trả kèm. Agent thật trả `is_mock=false`
 và `timezone="UTC"`. `reference_date` chỉ là mốc giải thích câu hỏi, không đổi ngày
-observations. Lỗi kết nối/timeout/HTTP hoặc response sai được báo lỗi tool, không
-trả kết quả rỗng hoặc số 0 thay lỗi. Timeout mỗi HTTP request là 30 giây.
+observations. LangGraph nạp tất cả observations khi khởi động, lấy đủ các trang
+và dùng chung snapshot trong bộ nhớ cho các lượt chat. Tools lọc và đếm trên
+snapshot, không gọi HTTP khi chạy. Lỗi kết nối/timeout/HTTP hoặc response sai
+làm khởi tạo thất bại, không thay bằng dữ liệu rỗng. Timeout mỗi request là 30 giây.
+Chạy file server trước LangGraph. Khi cập nhật metadata hoặc predictions, restart
+file server rồi restart LangGraph để nạp snapshot mới.
 
 Chế độ mock dùng chung một snapshot có 6 tàu, 8 lần quan sát, tạo ngày tương đối theo ngày chạy
 (hoặc `--today`). Ví dụ `--today 2026-10-13`: ngày 07/10 có 2 tàu khả nghi,
