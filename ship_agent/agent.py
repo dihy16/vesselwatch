@@ -1,9 +1,11 @@
 """Explicit LangGraph agent -> tools -> agent loop."""
 
+import json
 import os
 from datetime import date
+from uuid import uuid4
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -11,7 +13,26 @@ from pydantic import ValidationError
 from langchain_core.tools import ToolException
 
 from .dates import DataSource, data_timezone, resolve_reference_date
+from .report_artifacts import render_carrier_artifact
 from .tools import create_tools
+
+
+def _current_reports(messages: list[BaseMessage]) -> list[dict]:
+    """Use successful report calls from this turn, never a previous answer."""
+    turn = []
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        turn.append(message)
+    reports = {}
+    for message in reversed(turn):
+        if isinstance(message, ToolMessage) and message.name == "daily_carrier_report":
+            if message.status == "error":
+                reports.clear()
+            else:
+                report = json.loads(message.content)
+                reports[report["report_id"]] = report
+    return list(reports.values())
 
 
 def build_agent(
@@ -56,10 +77,11 @@ Trình bày thống kê bằng bảng. {confidence_note}
 Khi người dùng yêu cầu báo cáo hoặc biểu đồ/chart, dùng daily_carrier_report.
 Tool này chỉ thống kê lượt dự đoán tàu sân bay; nêu rõ phạm vi này trong câu trả lời.
 Viết nhận xét ngắn từ daily_stats và total_detections, không tự tính lại nhãn từ score.
-Nếu chart_url có giá trị, luôn chèn ![Biểu đồ lượt phát hiện nghi là tàu sân bay](chart_url)
-với URL nguyên vẹn từ tool, giữ đầy đủ query string; không chỉ đưa liên kết chữ.
-Nếu chart_url=null, nói chưa có ảnh chart và không tự tạo URL.
-Nếu nguồn báo lỗi, không dùng số liệu cũ hoặc bịa URL chart.
+Báo cáo thành công sẽ được hệ thống đính kèm HTML hoàn chỉnh trong code block html
+để Open WebUI mở bằng Artifacts. Chỉ viết phần nhận xét, không tự tạo HTML,
+không chèn ảnh PNG hoặc liên kết chart_url thay cho báo cáo.
+Mock vẫn có báo cáo HTML từ số liệu giả lập; luôn nêu rõ dữ liệu giả lập.
+Nếu nguồn báo lỗi, không dùng số liệu cũ hoặc bịa báo cáo.
 Đây là số lượt trong observations đã ghép metadata/prediction và có ảnh; không
 khẳng định đã bao phủ toàn bộ predictions.json. Dùng coverage nếu cần giải thích
 các bản ghi bị bỏ qua. Không suy luận biến động số lượt là biến động số tàu thực tế.
@@ -75,7 +97,22 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
 """)
 
     def call_model(state: MessagesState):
-        return {"messages": [llm_with_tools.invoke([prompt, *state["messages"]])]}
+        reports = _current_reports(state["messages"])
+        # Reports are added deterministically, without asking the LLM to copy HTML.
+        # Emit the complete node output in messages mode instead of streaming an
+        # incomplete answer before the artifact has been attached.
+        response = llm_with_tools.invoke(
+            [prompt, *state["messages"]],
+            config={"tags": ["nostream"]} if reports else None,
+        )
+        if reports and not response.tool_calls:
+            artifacts = "\n\n".join(
+                f"```html\n{render_carrier_artifact(report)}\n```" for report in reports
+            )
+            response = response.model_copy(update={
+                "id": str(uuid4()), "content": f"{response.text}\n\n{artifacts}",
+            })
+        return {"messages": [response]}
 
     graph = StateGraph(MessagesState)
     graph.add_node("agent", call_model)

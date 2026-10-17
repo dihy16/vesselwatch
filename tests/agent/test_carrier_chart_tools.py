@@ -1,11 +1,11 @@
-"""Mock HTTP/LLM checks for the carrier report tool and Markdown output."""
+"""Mock HTTP/LLM checks for carrier report tools and HTML Artifacts output."""
 
 from datetime import date
 import json
 from urllib.parse import urlencode
 
 import httpx
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
 import pytest
@@ -13,6 +13,7 @@ import pytest
 from file_server.carrier_reports import daily_carrier_report
 from ship_agent.agent import build_agent
 from ship_agent.file_server_client import FileServerError, load_daily_carrier_report
+from ship_agent.report_artifacts import render_carrier_artifact
 from ship_agent import tools as tools_module
 
 
@@ -97,7 +98,8 @@ def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
     )
 
 
-def test_graph_report_round_trip_returns_exact_chart_url_in_markdown(monkeypatch):
+@pytest.mark.parametrize("stream", [False, True])
+def test_graph_report_round_trip_returns_html_artifact(monkeypatch, stream):
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *args: report_data())
     requests = []
 
@@ -105,6 +107,7 @@ def test_graph_report_round_trip_returns_exact_chart_url_in_markdown(monkeypatch
         body = json.loads(request.content)
         requests.append(body)
         assert "daily_carrier_report" in body["messages"][0]["content"]
+        assert "code block html" in body["messages"][0]["content"]
         if len(requests) == 1:
             message = {"role": "assistant", "content": None, "tool_calls": [{
                 "id": "call_report", "type": "function", "function": {
@@ -117,8 +120,24 @@ def test_graph_report_round_trip_returns_exact_chart_url_in_markdown(monkeypatch
         else:
             result = json.loads(next(m["content"] for m in body["messages"] if m["role"] == "tool"))
             assert result["total_detections"] == 1
-            message = {"role": "assistant", "content": f"1 lượt dự đoán.\n![Biểu đồ]({result['chart_url']})"}
+            assert "<!DOCTYPE html>" not in json.dumps(result)
+            message = {"role": "assistant", "content": "1 lượt dự đoán."}
             reason = "stop"
+        if body.get("stream"):
+            delta = {**message}
+            if delta.get("tool_calls"):
+                delta["tool_calls"] = [
+                    {"index": i, **call} for i, call in enumerate(delta["tool_calls"])
+                ]
+            chunks = [
+                {"id": "chatcmpl-test", "object": "chat.completion.chunk", "created": 0,
+                 "model": "test", "choices": [{"index": 0, "delta": delta, "finish_reason": None}]},
+                {"id": "chatcmpl-test", "object": "chat.completion.chunk", "created": 0,
+                 "model": "test", "choices": [{"index": 0, "delta": {}, "finish_reason": reason}]},
+            ]
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=(
+                "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+            ).encode())
         return httpx.Response(200, json={
             "id": "chatcmpl-test", "object": "chat.completion", "created": 0, "model": "test",
             "choices": [{"index": 0, "message": message, "finish_reason": reason}],
@@ -126,8 +145,52 @@ def test_graph_report_round_trip_returns_exact_chart_url_in_markdown(monkeypatch
 
     with httpx.Client(transport=httpx.MockTransport(respond)) as client:
         model = ChatOpenAI(model="test", api_key="synthetic", http_client=client, max_retries=0)
-        result = build_agent(model=model, observations=[]).invoke({
+        graph = build_agent(model=model, observations=[])
+        inputs = {
             "messages": [HumanMessage(content="Vẽ biểu đồ tàu sân bay từ 12 đến 14/10/2026.")],
-        })
+        }
+        if stream:
+            events = list(graph.stream(inputs, stream_mode="messages"))
+            answers = [m for m, _ in events
+                       if isinstance(m, AIMessage) and not m.tool_calls and m.content]
+            assert len(answers) == 1
+            answer = answers[0].content
+        else:
+            answer = graph.invoke(inputs)["messages"][-1].content
     assert len(requests) == 2
-    assert f"![Biểu đồ]({report_data()['chart_url']})" in result["messages"][-1].content
+    assert answer == f"1 lượt dự đoán.\n\n```html\n{render_carrier_artifact(report_data())}\n```"
+    assert report_data()["chart_url"] not in answer
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_graph_never_reuses_previous_turn_artifact_after_followup_or_error(failure):
+    history = [
+        HumanMessage(content="Báo cáo trước."),
+        AIMessage(content="", tool_calls=[{
+            "id": "old_report", "name": "daily_carrier_report", "args": {},
+        }]),
+        ToolMessage(content=json.dumps(report_data()), name="daily_carrier_report",
+                    tool_call_id="old_report"),
+        AIMessage(content="Báo cáo cũ.\n```html\n<html></html>\n```"),
+        HumanMessage(content="Câu hỏi mới."),
+    ]
+    if failure:
+        history.extend([
+            AIMessage(content="", tool_calls=[{
+                "id": "failed_report", "name": "daily_carrier_report", "args": {},
+            }]),
+            ToolMessage(content="Không kết nối được file server.", name="daily_carrier_report",
+                        tool_call_id="failed_report", status="error"),
+        ])
+
+    def respond(request):
+        return httpx.Response(200, json={
+            "id": "chatcmpl-followup", "object": "chat.completion", "created": 0, "model": "test",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "Nhận xét mới."},
+                         "finish_reason": "stop"}],
+        })
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        model = ChatOpenAI(model="test", api_key="synthetic", http_client=client, max_retries=0)
+        result = build_agent(model=model, observations=[]).invoke({"messages": history})
+    assert result["messages"][-1].content == "Nhận xét mới."

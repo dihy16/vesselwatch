@@ -344,11 +344,38 @@ Tham khảo: [LangGraph quickstart](https://docs.langchain.com/oss/python/langgr
 [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling).
 
 
-## Báo cáo và chart PNG theo ngày
+## Báo cáo HTML trong Open WebUI Artifacts
 
-Tool `daily_carrier_report(observed_from, observed_to)` trả số liệu và URL ảnh PNG.
-Agent chèn ảnh bằng Markdown vào câu trả lời; không cần chỉnh Open WebUI Admin panel.
-Phần kết nối chat hiện tại phải giữ nguyên Markdown ảnh trong câu trả lời của agent.
+Tool `daily_carrier_report(observed_from, observed_to)` lấy số liệu báo cáo từ file server.
+Agent dựng HTML trực tiếp từ kết quả tool, rồi ghép vào câu trả lời cuối trong một
+code block `html` hoàn chỉnh, sau phần nhận xét của model. Không yêu cầu model
+chép lại HTML hay tự tạo biểu đồ. Chỉ đính kèm báo cáo thành công của lượt hỏi hiện tại.
+
+HTML chứa số tổng, biểu đồ cột ngang theo ngày, bảng số liệu và tùy chọn ẩn ngày 0.
+HTML/CSS nằm trong cùng một trang; không dùng JavaScript, CDN, ảnh PNG hoặc gọi mạng
+từ trình duyệt. Hoạt động cả khi iframe không cho chạy script hoặc truy cập same origin.
+Mock mode cũng có HTML với nhãn **DỮ LIỆU GIẢ LẬP**.
+
+Thiết lập một lần trên Open WebUI:
+
+1. Vào **Settings → Interface**, bật **Artifacts** hoặc tùy chọn tự phát hiện Artifacts
+   nếu phiên bản đang dùng có mục này.
+2. Gửi câu hỏi yêu cầu báo cáo/biểu đồ và mở panel **Artifacts** hoặc nút preview
+   của code block HTML nếu panel chưa tự mở. Tên nút có thể khác theo phiên bản.
+3. Phần kết nối LangGraph hiện tại phải chuyển nguyên văn câu trả lời cuối, bao gồm
+   dấu mở ` ```html ` và dấu đóng code block; không escape hoặc loại bỏ HTML.
+
+Không cần tạo Tool/Pipe mới, sửa source hoặc build lại Open WebUI. Nếu chỉ thấy code,
+kiểm tra tùy chọn Artifacts và câu trả lời cuối từ LangGraph trước. Nếu mất cả code block,
+kiểm tra lớp kết nối chat có giữ nguyên nội dung không. Repo không chứa Pipe đang chạy
+trên Open WebUI remote, nên phần hiển thị remote cần kiểm tra sau khi cập nhật agent.
+
+Luồng `stream_mode="messages"` phát câu trả lời báo cáo hoàn chỉnh sau khi model viết xong
+nhận xét, để HTML không bị bỏ sót hoặc lặp trong stream. Những lượt không tạo báo cáo
+vẫn dùng luồng model bình thường. Client chỉ nghe sự kiện token `on_chat_model_stream`
+cần đọc cả message đầu ra của node `agent`; SDK `runs.wait` nhận câu trả lời đầy đủ.
+
+Xem [tài liệu Artifacts của Open WebUI](https://docs.openwebui.com/features/chat-conversations/chat-features/code-execution/artifacts/).
 
 - Chỉ đếm prediction `predicted_aircraft_carrier=true` (classification `aircraft_carrier`),
   không áp lại ngưỡng score và không tính toàn bộ observations là tàu sân bay.
@@ -358,28 +385,27 @@ Phần kết nối chat hiện tại phải giữ nguyên Markdown ảnh trong c
   Bản ghi lặp cùng observation không tăng số đếm. Đây không phải số tàu duy nhất
   hoặc nhãn tàu sân bay đã được xác nhận.
 - Khoảng ngày gồm cả hai đầu mốc, tối đa 366 ngày; các ngày không có lượt trả 0.
-- Report và PNG cùng dùng snapshot của file server. Chỉ bao gồm observations
+- Report và HTML cùng dùng số liệu từ snapshot của file server. Chỉ bao gồm observations
   có metadata, prediction và ảnh đã được nạp. `coverage` trả số observations và
   các bản ghi bị bỏ qua. Không suy diễn số đếm là mức độ hoạt động tàu thực tế.
-- Chart tạo trong bộ nhớ, không ghi vào dataset. URL gắn với hash số liệu;
+- HTML tạo trong bộ nhớ, không ghi vào dataset và không cần URL để mở tab mới.
+  Endpoint PNG vẫn được giữ để tương thích client cũ. URL PNG gắn với hash số liệu;
   nếu restart server với số liệu khác, URL cũ trả 409 thay vì hiện chart sai.
   Hỏi lại báo cáo để nhận URL mới. Agent dùng endpoint báo cáo mới khi gọi tool,
   không dùng snapshot cũ của `count_ships` để tạo chart.
-- Mock mode chỉ trả số liệu giả và `chart_url=null`, không tạo URL ảnh giả.
+- Mock mode trả số liệu giả và `chart_url=null`, không tạo URL ảnh giả; HTML vẫn hiển thị.
 
-Trên remote, cập nhật code, cài dependency rồi restart file server và LangGraph:
+Trên remote, cập nhật code và restart LangGraph. Không có dependency mới cho Artifacts.
+Nếu môi trường chưa cài đủ dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-Nếu truy cập qua port forwarding, forward cả port `8001` của file server cùng port
-Open WebUI `8080`. `DATA_API_BASE_URL` trong `file_server/config.py` phải là URL
-mà trình duyệt tải được, ví dụ `http://127.0.0.1:8001` khi có forwarding.
-`FILE_SERVER_URL` trong `ship_agent/config.py` là URL mà LangGraph gọi từ remote;
-hai URL có thể khác nhau. Chỉ forward port 8080 không phục vụ ảnh chart ở port 8001.
-URL loopback bên trong Docker là của container, không phải host. Nếu lớp kết nối
-Open WebUI tải/proxy ảnh thay cho trình duyệt, dùng URL mà cả nó cũng truy cập được.
+Chỉ để xem báo cáo HTML, trình duyệt không cần truy cập port `8001`;
+LangGraph vẫn phải truy cập được file server qua `FILE_SERVER_URL`.
+Ảnh tàu và PNG dự phòng vẫn cần `DATA_API_BASE_URL` mà trình duyệt truy cập được,
+ví dụ forward port `8001` nếu URL ảnh là `http://127.0.0.1:8001`.
 
 Ví dụ câu hỏi:
 
@@ -393,7 +419,9 @@ Thử không cần LLM bằng cách mở:
 http://127.0.0.1:8001/reports/daily-carriers?observed_from=2026-10-01&observed_to=2026-10-14
 ```
 
-Mở `chart_url` trong JSON để kiểm tra PNG trước khi thử trong chat.
+Endpoint này trả JSON số liệu và `chart_url` PNG dự phòng; HTML được dựng ở agent.
+Trong chat, kết quả mong đợi là nhận xét ngắn kèm code block bắt đầu bằng
+`<!DOCTYPE html>` và kết thúc bằng `</html>`, được Open WebUI mở trong Artifacts.
 
 Kiểm tra offline với metadata/predictions và ảnh giả trong thư mục tạm:
 
@@ -401,7 +429,8 @@ Kiểm tra offline với metadata/predictions và ảnh giả trong thư mục t
 python -m pytest tests -q
 ```
 
-Các test chart kiểm tra ngày caption, nhãn boolean đã lưu, lượt đếm, ngày 0,
-PNG đọc được, URL/total từ tool, thay đổi dữ liệu và vòng gọi LangGraph bằng LLM giả.
+Các test báo cáo kiểm tra ngày caption, nhãn boolean đã lưu, lượt đếm, ngày 0,
+PNG dự phòng, HTML đủ ngày và đúng số liệu, mock, escape HTML, vòng gọi LangGraph
+và message streaming bằng LLM giả, cùng việc không tái sử dụng báo cáo của lượt cũ.
 Không cần GPU, dữ liệu production hoặc API key thật. Việc hiển thị trong Open WebUI
 đang chạy trên remote cần được kiểm tra sau khi cập nhật và restart dịch vụ.

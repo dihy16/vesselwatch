@@ -139,14 +139,15 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                           "Dữ liệu thật từ file server; mỗi ảnh Telegram là một tàu riêng.")
     @tool(args_schema=CountShipsInput)
     def daily_carrier_report(observed_from: str, observed_to: str) -> dict:
-        """Tạo báo cáo và biểu đồ PNG lượt dự đoán tàu sân bay theo từng ngày.
+        """Lấy số liệu cho báo cáo HTML Artifacts lượt dự đoán tàu sân bay theo ngày.
 
         Dùng khi người dùng yêu cầu báo cáo/chart/biểu đồ tàu sân bay hoặc tàu khả nghi.
         Chỉ đếm aircraft_carrier, không đếm toàn bộ tàu khả nghi. Đây là lượt
         phát hiện từ từng ảnh, không phải số tàu duy nhất hoặc nhãn đã xác nhận.
         Ngày từ caption, gồm cả hai đầu mốc, tối đa 366 ngày. Trả daily_stats,
-        total_detections và chart_url cho Markdown ảnh; không tự tạo URL.
-        Mock chỉ trả số liệu giả lập và chart_url=null, không có ảnh chart thật.
+        total_detections; hệ thống dùng chúng để đính kèm HTML vào câu trả lời.
+        chart_url là ảnh PNG dự phòng, không cần chèn khi đã có HTML Artifacts.
+        Mock trả số liệu giả lập và chart_url=null, vẫn dựng được báo cáo HTML.
         """
         first, last = _date_range(observed_from, observed_to)
         if not 0 <= (last - first).days < 366:
