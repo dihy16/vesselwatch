@@ -56,6 +56,11 @@ def build_agent(
                    if data_source == "mock" else
                    "Tools đọc dữ liệu thật từ file server. Mỗi ảnh Telegram là một tàu riêng; "
                    "không suy ra danh tính cùng tàu qua nhiều ảnh.")
+    if data_source == "demo":
+        source_note = ("Bộ dữ liệu demo cố định từ ShipClassification: ảnh vệ tinh và kết quả mô hình đã lưu. "
+                       "DEMO_001... là bí danh quan sát để trình diễn, không phải tên tàu thật. "
+                       "Đây là tập mẫu đã chọn; không đại diện toàn bộ dữ liệu và không chạy inference mới. "
+                       "Dùng số liệu tool trả về, không thay đổi ngày, vị trí, kích thước hay điểm dự đoán.")
     image_note = ("Nói rõ đây là URL ảnh giả lập và bạn chưa phân tích nội dung ảnh."
                   if data_source == "mock" else
                   "Đây là URL ảnh thật do file server phục vụ; bạn chưa tải hay phân tích nội dung ảnh.")
@@ -98,12 +103,16 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
 
     def call_model(state: MessagesState):
         reports = _current_reports(state["messages"])
+        demo_images_requested = False
+        if data_source == "demo":
+            from .demo_data import wants_demo_images
+            demo_images_requested = wants_demo_images(state["messages"])
         # Reports are added deterministically, without asking the LLM to copy HTML.
         # Emit the complete node output in messages mode instead of streaming an
         # incomplete answer before the artifact has been attached.
         response = llm_with_tools.invoke(
             [prompt, *state["messages"]],
-            config={"tags": ["nostream"]} if reports else None,
+            config={"tags": ["nostream"]} if reports or demo_images_requested else None,
         )
         if reports and not response.tool_calls:
             artifacts = "\n\n".join(
@@ -112,6 +121,13 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
             response = response.model_copy(update={
                 "id": str(uuid4()), "content": f"{response.text}\n\n{artifacts}",
             })
+        elif demo_images_requested and not response.tool_calls:
+            from .demo_data import demo_image_markdown
+            images = demo_image_markdown(state["messages"], response.text)
+            if images:
+                response = response.model_copy(update={
+                    "id": str(uuid4()), "content": f"{response.text}\n\n{images}",
+                })
         return {"messages": [response]}
 
     graph = StateGraph(MessagesState)

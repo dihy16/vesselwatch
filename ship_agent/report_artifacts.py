@@ -20,6 +20,17 @@ def render_carrier_artifact(report: dict) -> str:
         )
     first, last = escape(report["observed_from"]), escape(report["observed_to"])
     source = "DỮ LIỆU GIẢ LẬP" if report["is_mock"] else "KẾT QUẢ DỰ ĐOÁN"
+    gallery = ""
+    date_note = "Ngày lấy từ thời gian quan sát trong caption."
+    scope_note = ("Phạm vi: các quan sát có metadata, prediction và ảnh đã được nạp; "
+                  "không khẳng định bao phủ toàn bộ dữ liệu nguồn.")
+    if report.get("is_demo"):
+        from .demo_data import demo_gallery
+        source = "BỘ DỮ LIỆU DEMO · KẾT QUẢ ĐÃ LƯU"
+        gallery = demo_gallery(report)
+        date_note = "Giữ nguyên thời gian quan sát từ dữ liệu nguồn."
+        scope_note = ("Phạm vi: tập mẫu demo trích từ ShipClassification, giữ nguyên ảnh và kết quả đã lưu. "
+                      "Bí danh DEMO là mã quan sát trong bản trình diễn, không phải tên tàu thực tế.")
     empty = ('<p class="empty">Không có lượt dự đoán tàu sân bay trong khoảng ngày.</p>'
              if report["total_detections"] == 0 else "")
     return f"""<!DOCTYPE html>
@@ -54,6 +65,11 @@ def render_carrier_artifact(report: dict) -> str:
   .count {{ text-align: right; white-space: nowrap; font-weight: 600; }}
   #hide-zero:checked ~ .scroll tr.zero {{ display: none; }}
   .empty {{ padding: 12px; border: 1px dashed var(--line); color: var(--muted); }}
+  .demo-gallery {{ margin-top: 24px; }}
+  .image-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }}
+  figure {{ margin: 0; }}
+  figure img {{ width: 100%; height: 240px; object-fit: contain; image-rendering: pixelated; background: #101827; border-radius: 10px; }}
+  figcaption {{ padding-top: 10px; font-size: 14px; line-height: 1.5; }}
   footer {{ font-size: 13px; margin: 20px 0; }}
   @media (max-width: 540px) {{ body {{ padding: 12px; }} .metrics {{ grid-template-columns: 1fr; }} }}
   @media (prefers-color-scheme: dark) {{ :root {{ --bg: #101827; --card: #192438;
@@ -65,7 +81,7 @@ def render_carrier_artifact(report: dict) -> str:
   <header>
     <div class="eyebrow">VESSELWATCH · {source}</div>
     <h1>Lượt phát hiện nghi là tàu sân bay</h1>
-    <p class="muted">{first} → {last} · Ngày lấy từ thời gian quan sát trong caption.</p>
+    <p class="muted">{first} → {last} · {date_note}</p>
   </header>
   <div class="metrics">
     <div class="metric">Tổng lượt phát hiện<strong>{report["total_detections"]}</strong></div>
@@ -86,11 +102,11 @@ def render_carrier_artifact(report: dict) -> str:
       </table>
     </div>
   </section>
+  {gallery}
   <footer>
     <p>Mỗi ảnh quan sát được đếm riêng. Đây là số lượt phát hiện, không phải số tàu duy nhất
     hay xác nhận tàu sân bay thực tế. Không suy ra mức độ hoạt động tàu từ biến động số lượt.</p>
-    <p>Phạm vi: các quan sát có metadata, prediction và ảnh đã được nạp;
-    không khẳng định bao phủ toàn bộ dữ liệu nguồn.</p>
+    <p>{scope_note}</p>
   </footer>
 </main>
 </body>

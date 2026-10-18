@@ -54,9 +54,16 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
     is_mock = data_source == "mock"
     if is_mock:
         observations = build_observations(anchor)
+    elif data_source == "demo":
+        from .demo_data import load_demo_observations, read_snapshot
+        observations = load_demo_observations()
+        demo_snapshot = read_snapshot()
     elif observations is None:
         observations = load_observations()
     metadata = {"is_mock": is_mock, "reference_date": anchor.isoformat(), "timezone": data_timezone(data_source)}
+    if data_source == "demo":
+        metadata.update(is_demo=True, data_scope="selected_demo_subset",
+                        demo_snapshot_id=demo_snapshot["snapshot_id"])
 
     def latest_in_range(first, last, per_day=False):
         latest = {}
@@ -137,6 +144,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
 
     source_description = ("Dữ liệu và URL giả lập." if is_mock else
                           "Dữ liệu thật từ file server; mỗi ảnh Telegram là một tàu riêng.")
+    if data_source == "demo":
+        source_description = "Bộ demo cố định: ảnh vệ tinh và dự đoán đã lưu, không phải inference mới."
     @tool(args_schema=CountShipsInput)
     def daily_carrier_report(observed_from: str, observed_to: str) -> dict:
         """Lấy số liệu cho báo cáo HTML Artifacts lượt dự đoán tàu sân bay theo ngày.
@@ -152,7 +161,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         first, last = _date_range(observed_from, observed_to)
         if not 0 <= (last - first).days < 366:
             raise ToolException("Mỗi báo cáo có từ 1 đến 366 ngày.")
-        if is_mock:
+        if is_mock or data_source == "demo":
             result = aggregate_carriers(observations, first, last)
             return {**result, **metadata, "chart_url": None}
         try:

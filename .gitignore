@@ -5,4 +5,10 @@ __pycache__/
 .langgraph_api/
 *.pyc
 .vibe-wise/
-data/
+data/*
+!data/demo/
+data/demo/*
+!data/demo/snapshot.json
+!data/demo/images/
+data/demo/images/*
+!data/demo/images/DEMO_*.png

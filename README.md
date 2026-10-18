@@ -346,6 +346,10 @@ Tham khảo: [LangGraph quickstart](https://docs.langchain.com/oss/python/langgr
 
 ## Báo cáo HTML trong Open WebUI Artifacts
 
+Để quay clip với ảnh vệ tinh và số liệu cố định từ ShipClassification, xem
+[kịch bản demo 4 phút](DEMO_AGENT_4_PHUT.md). Chạy `langgraph.demo.json` để chọn
+bộ demo riêng; `langgraph.json` tiếp tục dùng nguồn dữ liệu thật như trước.
+
 Tool `daily_carrier_report(observed_from, observed_to)` lấy số liệu báo cáo từ file server.
 Agent dựng HTML trực tiếp từ kết quả tool, rồi ghép vào câu trả lời cuối trong một
 code block `html` hoàn chỉnh, sau phần nhận xét của model. Không yêu cầu model
