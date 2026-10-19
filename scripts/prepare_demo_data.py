@@ -4,14 +4,16 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-# A December carrier and another independently observed carrier.
+# Three curated crops; do not auto-include alternate crops of the same acquisition.
 CARRIER_DIGESTS = (
     "0e99f80c1e95b0cc97a7397cb3aaeda33a66f11ac33dd88325c3a0dce5963696",
     "f30a54085ff423004a52b923112a27c91c29cc8798c4299aad38444081a883fb",
+    "5bf9e7516ca37eee305b5a8a68b4215d7cfb43c11c4de687f6f522e3e3577373",
 )
 FIRST, LAST = "2025-12-24", "2025-12-30"
 
@@ -49,18 +51,18 @@ def write_snapshot(source_repo: Path, output: Path) -> dict:
         if (row["metadata"]["ground_truth_label"] != "Carrier present"
                 or row["prediction"]["carrier_score"] < threshold):
             raise ValueError(f"Selected image is not a saved true positive: {digest}")
+        for previous in selected:
+            if row["captured_at"] != previous["captured_at"]:
+                continue
+            latitude = math.radians((row["latitude"] + previous["latitude"]) / 2)
+            separation_m = 111_000 * math.hypot(
+                row["latitude"] - previous["latitude"],
+                (row["longitude"] - previous["longitude"]) * math.cos(latitude),
+            )
+            if separation_m < 500:
+                raise ValueError("Selected carrier crops share the same acquisition and position; "
+                                 "choose a spatially distinct observation.")
         selected.append(row)
-    # Include the other located December carrier if not already selected.
-    december_carriers = sorted(
-        (row for row in indexed.values()
-         if FIRST <= row["captured_at"][:10] <= LAST
-         and row["metadata"]["ground_truth_label"] == "Carrier present"
-         and row["prediction"]["carrier_score"] >= threshold),
-        key=lambda row: row["id"],
-    )
-    for row in december_carriers:
-        if row not in selected:
-            selected.append(row)
     negatives = sorted(
         (row for row in indexed.values()
          if FIRST <= row["captured_at"][:10] <= LAST

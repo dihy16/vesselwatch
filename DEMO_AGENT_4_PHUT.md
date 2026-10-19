@@ -93,9 +93,9 @@ Bộ demo có **11 quan sát**: 3 mẫu có nhãn tàu sân bay và mô hình d�
 | --- | --- | --- |
 | fb21fe76-1b74-4ee3-af60-be68f2e1b20b | 30/12/2025 | 350,6 × 81,0 m |
 | S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 | 25/06/2025 | 315,9 × 73,3 m |
-| 703342cf-2fca-4da5-a12a-e74f5bde065c | 30/12/2025 | 350,6 × 81,0 m |
+| 3087952c-ba2b-4e74-b405-311025f5959d | 14/06/2025 | 342,6 × 76,0 m |
 
-Tuần **24–30/12/2025** có **10 lượt quan sát**, trong đó **2 lượt dự đoán là tàu sân bay**. S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 nằm ngoài tuần này. Đây là tập mẫu đã chọn, không phải toàn bộ dữ liệu hoặc số tàu duy nhất.
+Tuần **24–30/12/2025** có **9 lượt quan sát**, trong đó **1 lượt dự đoán là tàu sân bay**. Hai mẫu tháng 6 nằm ngoài tuần này. Đây là tập mẫu đã chọn, không phải toàn bộ dữ liệu hoặc số tàu duy nhất. Ba mẫu dương được chọn thủ công ở ba vị trí khác nhau; không tự thêm crop khác của cùng lượt chụp vào bộ demo. Prompt 7 dùng khoảng **01/06–30/12/2025** để hiện cả ba vị trí.
 
 ## Chuẩn bị trước khi quay
 
@@ -128,7 +128,7 @@ Các mốc trên gồm cả thời gian chờ trả lời, có thể xê dịch 
 Liệt kê 3 quan sát được dự đoán là tàu sân bay trong bộ dữ liệu demo. Trình bày bảng gồm ID, ngày quan sát, chiều dài, chiều rộng và điểm dự đoán. Làm tròn kích thước đến 1 chữ số thập phân. Chưa cần hiển thị ảnh, trả lời ngắn gọn.
 ```
 
-**Mong đợi:** fb21fe76-1b74-4ee3-af60-be68f2e1b20b, S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0, 703342cf-2fca-4da5-a12a-e74f5bde065c. Dừng vài giây ở bảng kết quả để người xem đọc được thông tin.
+**Mong đợi:** fb21fe76-1b74-4ee3-af60-be68f2e1b20b, S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0, 3087952c-ba2b-4e74-b405-311025f5959d. Dừng vài giây ở bảng kết quả để người xem đọc được thông tin.
 
 ## Prompt 2 — Hỏi tiếp và xem ảnh
 
@@ -146,7 +146,7 @@ Muốn đổi ảnh khi quay lại, có thể dùng: **“Cho tôi xem ảnh tà
 Tìm các quan sát được dự đoán là tàu sân bay có chiều dài từ 330 m và chiều rộng từ 75 m trở lên trong bộ dữ liệu demo. Trả bảng ID, ngày quan sát và kích thước. Cho biết tổng số kết quả phù hợp, chưa cần hiển thị ảnh.
 ```
 
-**Mong đợi:** 2 kết quả, fb21fe76-1b74-4ee3-af60-be68f2e1b20b và 703342cf-2fca-4da5-a12a-e74f5bde065c; S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 bị loại bởi điều kiện kích thước.
+**Mong đợi:** 2 kết quả, fb21fe76-1b74-4ee3-af60-be68f2e1b20b và 3087952c-ba2b-4e74-b405-311025f5959d; S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 bị loại bởi điều kiện kích thước.
 
 ## Prompt 4 — Thống kê theo ngày
 
@@ -164,7 +164,7 @@ Từ ngày 24/12/2025 đến hết ngày 30/12/2025, thống kê số lượt qu
 | 27/12/2025 | 2 | 0 |
 | 28/12/2025 | 0 | 0 |
 | 29/12/2025 | 2 | 0 |
-| 30/12/2025 | 4 | 2 |
+| 30/12/2025 | 3 | 1 |
 
 ## Prompt 5 — Xuất ảnh chart PNG riêng
 
@@ -174,7 +174,7 @@ Vẽ biểu đồ cột theo ngày về số lượt được dự đoán là t�
 
 **Tool cần thấy:** `daily_carrier_report` với `observed_from="2025-12-24"`, `observed_to="2025-12-30"`, `output_format="png"`.
 
-**Mong đợi:** ảnh PNG có 7 ngày, ngày 30/12 có 2 lượt và 6 ngày còn lại có 0 lượt; tổng 2 lượt. Số liệu khớp cột lượt dự đoán tàu sân bay ở prompt 4. Ảnh chart hiển thị ngay trong chat qua `chart_url` của tool.
+**Mong đợi:** ảnh PNG có 7 ngày, ngày 30/12 có 1 lượt và 6 ngày còn lại có 0 lượt; tổng 1 lượt. Số liệu khớp cột lượt dự đoán tàu sân bay ở prompt 4. Ảnh chart hiển thị ngay trong chat qua `chart_url` của tool.
 
 **Khi quay:** cho thấy phần gọi tool, sau đó giữ ảnh chart trên màn hình khoảng 5–8 giây để đọc ngày và số lượt.
 
@@ -184,7 +184,7 @@ Vẽ biểu đồ cột theo ngày về số lượt được dự đoán là t�
 Lập báo cáo HTML cho đúng khoảng ngày 24/12/2025–30/12/2025 về số lượt phát hiện nghi là tàu sân bay. Hiển thị biểu đồ, bảng số liệu và ảnh tàu sân bay trong báo cáo Artifacts. Kèm nhận xét tối đa 2 câu.
 ```
 
-**Mong đợi:** tổng 2 lượt dự đoán, biểu đồ 7 ngày, bảng số liệu và ảnh fb21fe76-1b74-4ee3-af60-be68f2e1b20b, 703342cf-2fca-4da5-a12a-e74f5bde065c. S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 không xuất hiện vì nằm ngoài khoảng ngày.
+**Mong đợi:** tổng 1 lượt dự đoán, biểu đồ 7 ngày, bảng số liệu và ảnh fb21fe76-1b74-4ee3-af60-be68f2e1b20b. Hai mẫu tháng 6 không xuất hiện vì nằm ngoài khoảng ngày.
 
 **Tool cần thấy:** `daily_carrier_report` với `observed_from="2025-12-24"`, `observed_to="2025-12-30"`, `output_format="html"` (hoặc bỏ qua định dạng để dùng mặc định HTML). Biểu đồ trong HTML có cùng số liệu với ảnh PNG ở prompt 5.
 
@@ -193,12 +193,12 @@ Lập báo cáo HTML cho đúng khoảng ngày 24/12/2025–30/12/2025 về số
 ## Prompt 7 — Bản đồ Leaflet nhúng iframe
 
 ```text
-Hiển thị các quan sát được dự đoán là tàu sân bay từ ngày 24/12/2025 đến hết ngày 30/12/2025 trên bản đồ tương tác trong Artifacts. Cho phép chọn quan sát để xem ảnh, ID tàu, thời gian và kích thước. Kèm liên kết mở bản đồ toàn màn hình.
+Hiển thị các quan sát được dự đoán là tàu sân bay từ ngày 01/06/2025 đến hết ngày 30/12/2025 trên bản đồ tương tác trong Artifacts. Cho phép chọn quan sát để xem ảnh, ID tàu, thời gian và kích thước. Kèm liên kết mở bản đồ toàn màn hình.
 ```
 
-**Tool cần thấy:** `create_vessel_map` với `observed_from="2025-12-24"`, `observed_to="2025-12-30"`, `classification="aircraft_carrier"`.
+**Tool cần thấy:** `create_vessel_map` với `observed_from="2025-06-01"`, `observed_to="2025-12-30"`, `classification="aircraft_carrier"`.
 
-**Mong đợi:** 2 quan sát, ID `fb21fe76-1b74-4ee3-af60-be68f2e1b20b` và `703342cf-2fca-4da5-a12a-e74f5bde065c`. Hai quan sát trùng tọa độ trong nguồn; chọn từng dòng ở danh sách để xem riêng từng ảnh. Map tự mở kết quả, ảnh và dự đoán đã lưu; không gọi classifier.
+**Mong đợi:** 3 quan sát ở 3 vị trí khác nhau, ID `fb21fe76-1b74-4ee3-af60-be68f2e1b20b`, `S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0` và `3087952c-ba2b-4e74-b405-311025f5959d`. Chọn từng marker hoặc từng dòng trong danh sách để xem ảnh. Khoảng ngày map rộng hơn chart/báo cáo tuần để gồm cả hai mẫu tháng 6. Map tự mở kết quả, ảnh và dự đoán đã lưu; không gọi classifier.
 
 **Khi quay:** mở Artifacts, chọn một dòng để hiện ảnh và thông tin; phóng/thu bản đồ. Link toàn màn hình nằm cả trong Artifact và câu trả lời chat.
 

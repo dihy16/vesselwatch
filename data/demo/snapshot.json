@@ -54,24 +54,24 @@
       "source_id": "S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0"
     },
     {
-      "observation_id": "validation-e7fef251498e0de8726a8d8a6c55cfc6a9d56b24281b28c2a7a23ba02945b58d",
-      "ship_id": "703342cf-2fca-4da5-a12a-e74f5bde065c",
-      "observed_date": "2025-12-30",
-      "observed_at": "2025-12-30T02:31:21Z",
-      "length_m": 350.60985565185547,
-      "width_m": 80.96973419189453,
+      "observation_id": "test-5bf9e7516ca37eee305b5a8a68b4215d7cfb43c11c4de687f6f522e3e3577373",
+      "ship_id": "3087952c-ba2b-4e74-b405-311025f5959d",
+      "observed_date": "2025-06-14",
+      "observed_at": "2025-06-14T03:01:51Z",
+      "length_m": 342.6226043701172,
+      "width_m": 75.98096370697021,
       "position": {
-        "latitude": 16.988732740013788,
-        "longitude": 118.14797990398736
+        "latitude": 10.731036544976217,
+        "longitude": 110.46710151783097
       },
       "classification": "aircraft_carrier",
-      "confidence": 0.9999048709869385,
+      "confidence": 0.9999935626983643,
       "image_id": "DEMO_003",
       "image_file": "DEMO_003.png",
-      "image_sha256": "e7fef251498e0de8726a8d8a6c55cfc6a9d56b24281b28c2a7a23ba02945b58d",
+      "image_sha256": "5bf9e7516ca37eee305b5a8a68b4215d7cfb43c11c4de687f6f522e3e3577373",
       "ground_truth_label": "Carrier present",
-      "source_name": "photo_2025-12-31_00-13-34__e7fef251498e0de8",
-      "source_id": "703342cf-2fca-4da5-a12a-e74f5bde065c"
+      "source_name": "3087952c-ba2b-4e74-b405-311025f5959d__5bf9e7516ca37eee",
+      "source_id": "3087952c-ba2b-4e74-b405-311025f5959d"
     },
     {
       "observation_id": "test-007fdd5abaafdfe199ece0f692ffc96174e79c8da8fb1e4000aae185bdc1f112",
@@ -234,5 +234,5 @@
       "source_id": "S2C_MSIL2A_20251230T023121_N0511_R046_T50QQJ_20251230T054509_1"
     }
   ],
-  "snapshot_id": "edc2a323589ee25bdffee901e1d37add9673acdccc287cd27c24476ffa096a9a"
+  "snapshot_id": "129de09cd556ea173fa89f9890a4f130bee27771c312e2111330ed9d9c76cef2"
 }

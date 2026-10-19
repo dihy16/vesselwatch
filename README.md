@@ -363,7 +363,8 @@ quả đúng bộ lọc, dùng ID nguồn và dự đoán đã lưu, không ch�
 Mỗi map đóng băng dữ liệu và ảnh gốc đã kiểm tra trong `data/demo/maps/`
 (được Git bỏ qua). Giữ thư mục này khi deploy để link trong lịch sử chat còn
 hoạt động sau restart hoặc thay dữ liệu nguồn. Đây là lượt quan sát, không phải
-số tàu duy nhất; hai quan sát có thể trùng tọa độ và chọn riêng trong danh sách.
+số tàu duy nhất. Ba mẫu dương trong bộ demo được chọn ở ba vị trí khác nhau;
+không đưa crop khác của cùng lượt chụp vào danh sách mẫu dương.
 Map và ảnh không cần gọi API từ iframe; nền OpenStreetMap vẫn cần internet.
 
 - `VESSELWATCH_DEMO_PUBLIC_URL`: URL trình duyệt truy cập, mặc định
@@ -375,8 +376,8 @@ Map và ảnh không cần gọi API từ iframe; nền OpenStreetMap vẫn cầ
   quyền ghi và được giữ lại qua các lần deploy. Server demo không tự đọc `.env`.
 
 Sau khi cập nhật code, restart server demo và LangGraph, giữ forward **8002**.
-Thử: **“Hiển thị các quan sát được dự đoán là tàu sân bay từ 24/12/2025 đến
-30/12/2025 trên bản đồ tương tác.”** Tool trả 2 quan sát trong snapshot demo.
+Thử: **“Hiển thị các quan sát được dự đoán là tàu sân bay từ 01/06/2025 đến
+30/12/2025 trên bản đồ tương tác.”** Tool trả 3 quan sát ở 3 vị trí trong snapshot demo.
 Mở URL map độc lập trước, sau đó mở iframe trong Artifacts. Nếu độc lập mở được
 nhưng iframe trắng, kiểm tra cấu hình iframe/CSP thực tế của Open WebUI cho phép
 trang map và script của nó; dùng link mở toàn màn hình để đối chiếu.
