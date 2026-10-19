@@ -125,33 +125,39 @@ Các mốc trên gồm cả thời gian chờ trả lời, có thể xê dịch 
 ## Prompt 1 — Tra cứu kết quả nhận diện
 
 ```text
-Liệt kê 3 quan sát được dự đoán là tàu sân bay trong bộ dữ liệu demo. Trình bày bảng gồm ID, ngày quan sát, chiều dài, chiều rộng và điểm dự đoán. Làm tròn kích thước đến 1 chữ số thập phân. Chưa cần hiển thị ảnh, trả lời ngắn gọn.
+Từ ngày 01/06/2025 đến hết ngày 30/12/2025, có những lượt phát hiện nào nghi là tàu sân bay? Trình bày bảng gồm ID tàu, ngày quan sát, chiều dài, chiều rộng và điểm dự đoán. Làm tròn kích thước đến 1 chữ số thập phân, chưa cần hiển thị ảnh.
 ```
 
 **Mong đợi:** fb21fe76-1b74-4ee3-af60-be68f2e1b20b, S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0, 3087952c-ba2b-4e74-b405-311025f5959d. Dừng vài giây ở bảng kết quả để người xem đọc được thông tin.
 
+**Tool cần thấy:** `search_ships` với `observed_from="2025-06-01"`, `observed_to="2025-12-30"`, `classification="aircraft_carrier"`; tổng 3 kết quả.
+
 ## Prompt 2 — Hỏi tiếp và xem ảnh
 
 ```text
-Cho tôi xem ảnh của tàu fb21fe76-1b74-4ee3-af60-be68f2e1b20b trong bảng vừa rồi, kèm vị trí, thời gian quan sát và kích thước. Hiển thị ảnh trực tiếp trong câu trả lời, không chỉ đưa liên kết.
+Cho tôi xem ảnh của lượt phát hiện ngày 30/12/2025 trong bảng vừa rồi, kèm ID tàu, vị trí, thời gian quan sát và kích thước. Hiển thị ảnh trực tiếp trong câu trả lời.
 ```
 
 **Khi quay:** giữ ảnh trên màn hình khoảng 5–8 giây; cuộn vừa đủ để thấy ảnh và thông tin đi kèm.
 
-Muốn đổi ảnh khi quay lại, có thể dùng: **“Cho tôi xem ảnh tàu S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0, kèm ngày quan sát và kích thước.”** Không cần gửi thêm câu này trong cùng clip nếu thiếu thời gian.
+**Mong đợi:** ảnh và thông tin của `fb21fe76-1b74-4ee3-af60-be68f2e1b20b`, là kết quả ngày 30/12 trong bảng trước. Agent dùng ID đã tìm được từ ngữ cảnh.
+
+Muốn đổi ảnh khi quay lại, có thể dùng: **“Cho tôi xem ảnh của lượt phát hiện ngày 25/06/2025 trong bảng vừa rồi, kèm ID tàu và kích thước.”** Không cần gửi thêm câu này trong cùng clip nếu thiếu thời gian.
 
 ## Prompt 3 — Lọc theo nhiều điều kiện
 
 ```text
-Tìm các quan sát được dự đoán là tàu sân bay có chiều dài từ 330 m và chiều rộng từ 75 m trở lên trong bộ dữ liệu demo. Trả bảng ID, ngày quan sát và kích thước. Cho biết tổng số kết quả phù hợp, chưa cần hiển thị ảnh.
+Trong khoảng 01/06/2025–30/12/2025, lọc các lượt phát hiện nghi là tàu sân bay có chiều dài từ 330 m và chiều rộng từ 75 m trở lên. Trả bảng ID tàu, ngày quan sát, kích thước và tổng số kết quả phù hợp, chưa cần hiển thị ảnh.
 ```
 
 **Mong đợi:** 2 kết quả, fb21fe76-1b74-4ee3-af60-be68f2e1b20b và 3087952c-ba2b-4e74-b405-311025f5959d; S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0 bị loại bởi điều kiện kích thước.
 
+**Tool cần thấy:** `search_ships` với cùng khoảng ngày ở prompt 1, `classification="aircraft_carrier"`, `min_length_m=330`, `min_width_m=75`.
+
 ## Prompt 4 — Thống kê theo ngày
 
 ```text
-Từ ngày 24/12/2025 đến hết ngày 30/12/2025, thống kê số lượt quan sát tàu khả nghi và số lượt được dự đoán là tàu sân bay theo từng ngày. Hiển thị cả ngày không có lượt quan sát và trả lời bằng bảng ngắn gọn.
+Từ ngày 24/12/2025 đến hết ngày 30/12/2025, thống kê theo từng ngày có bao nhiêu lượt quan sát tàu khả nghi và bao nhiêu lượt nghi là tàu sân bay. Hiển thị cả ngày không có lượt quan sát và trình bày bằng bảng ngắn gọn.
 ```
 
 **Khi quay:** dừng ở phần khoảng ngày và bảng thống kê. Giữ đúng cách gọi “lượt quan sát/lượt phát hiện”, không gọi đây là số tàu duy nhất.
@@ -169,7 +175,7 @@ Từ ngày 24/12/2025 đến hết ngày 30/12/2025, thống kê số lượt qu
 ## Prompt 5 — Xuất ảnh chart PNG riêng
 
 ```text
-Vẽ biểu đồ cột theo ngày về số lượt được dự đoán là tàu sân bay từ ngày 24/12/2025 đến hết ngày 30/12/2025. Xuất ảnh chart PNG riêng và hiển thị ảnh trực tiếp trong chat. Hiển thị cả ngày có 0 lượt. Chưa tạo báo cáo HTML, kèm nhận xét tối đa 1 câu.
+Vẽ biểu đồ cột về số lượt phát hiện nghi là tàu sân bay theo từng ngày từ 24/12/2025 đến hết 30/12/2025. Hiển thị biểu đồ dưới dạng ảnh trực tiếp trong chat, gồm cả ngày có 0 lượt, kèm một câu nhận xét ngắn.
 ```
 
 **Tool cần thấy:** `daily_carrier_report` với `observed_from="2025-12-24"`, `observed_to="2025-12-30"`, `output_format="png"`.
@@ -181,7 +187,7 @@ Vẽ biểu đồ cột theo ngày về số lượt được dự đoán là t�
 ## Prompt 6 — Báo cáo HTML và biểu đồ
 
 ```text
-Lập báo cáo HTML cho đúng khoảng ngày 24/12/2025–30/12/2025 về số lượt phát hiện nghi là tàu sân bay. Hiển thị biểu đồ, bảng số liệu và ảnh tàu sân bay trong báo cáo Artifacts. Kèm nhận xét tối đa 2 câu.
+Lập báo cáo tổng hợp các lượt phát hiện nghi là tàu sân bay từ ngày 24/12/2025 đến hết ngày 30/12/2025. Báo cáo gồm biểu đồ theo ngày, bảng số liệu và ảnh các lượt phát hiện, kèm nhận xét tối đa 2 câu.
 ```
 
 **Mong đợi:** tổng 1 lượt dự đoán, biểu đồ 7 ngày, bảng số liệu và ảnh fb21fe76-1b74-4ee3-af60-be68f2e1b20b. Hai mẫu tháng 6 không xuất hiện vì nằm ngoài khoảng ngày.
@@ -193,7 +199,7 @@ Lập báo cáo HTML cho đúng khoảng ngày 24/12/2025–30/12/2025 về số
 ## Prompt 7 — Bản đồ Leaflet nhúng iframe
 
 ```text
-Hiển thị các quan sát được dự đoán là tàu sân bay từ ngày 01/06/2025 đến hết ngày 30/12/2025 trên bản đồ tương tác trong Artifacts. Cho phép chọn quan sát để xem ảnh, ID tàu, thời gian và kích thước. Kèm liên kết mở bản đồ toàn màn hình.
+Đánh dấu các lượt phát hiện nghi là tàu sân bay từ ngày 01/06/2025 đến hết ngày 30/12/2025 trên bản đồ tương tác. Tôi muốn chọn từng vị trí để xem ảnh, ID tàu, thời gian quan sát và kích thước. Kèm liên kết mở bản đồ toàn màn hình.
 ```
 
 **Tool cần thấy:** `create_vessel_map` với `observed_from="2025-06-01"`, `observed_to="2025-12-30"`, `classification="aircraft_carrier"`.
