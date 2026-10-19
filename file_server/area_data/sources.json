@@ -1,0 +1,33 @@
+{
+  "crs": "EPSG:4326",
+  "coordinate_order": "longitude, latitude",
+  "license_url": "https://www.marineregions.org/disclaimer.php",
+  "sources": [
+    {
+      "id": "bien_dong",
+      "name": "Biển Đông",
+      "provider": "Marine Regions / VLIZ",
+      "layer": "iho",
+      "cql_filter": "mrgid=4332",
+      "url": "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions%3Aiho&cql_filter=mrgid%3D4332&outputFormat=application%2Fjson&srsName=EPSG%3A4326",
+      "retrieved_at": "2026-10-19T07:50:49.723632+00:00",
+      "source_sha256": "e75c351883ec94e13c2a8e5224d1bbfb17b3128339b961062c773d101bd4d077",
+      "geometry_sha256": "92293e5bef69f7fb621a33c424c1b219209ceaf8608b70aa77f2eedbe2e28ffb",
+      "geometry_type": "MultiPolygon",
+      "asset": "bien_dong.geojson.gz"
+    },
+    {
+      "id": "vinh_bac_bo",
+      "name": "Vịnh Bắc Bộ",
+      "provider": "Marine Regions / VLIZ",
+      "layer": "seavox_v19",
+      "cql_filter": "mrgid_sr='24143'",
+      "url": "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions%3Aseavox_v19&cql_filter=mrgid_sr%3D%2724143%27&outputFormat=application%2Fjson&srsName=EPSG%3A4326",
+      "retrieved_at": "2026-10-19T07:50:49.974445+00:00",
+      "source_sha256": "30ac80236fee45b6f73ead25bac19aadaf7158c77f312668e7f423dc30e617e3",
+      "geometry_sha256": "aa1cf497c21a4fed1545de8467106bc8dae39a89956aff9fbd9b73e5f9643af3",
+      "geometry_type": "MultiPolygon",
+      "asset": "vinh_bac_bo.geojson.gz"
+    }
+  ]
+}

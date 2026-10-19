@@ -23,6 +23,9 @@ def render_map(payload: dict) -> str:
                "default_date_range": {"from": filters["observed_from"], "to": filters["observed_to"]},
                "dataset_label": "VesselWatch demo · Saved predictions · Filtered snapshot",
                "snapshot_filters": filters,
+               "area_query": payload.get("area_query", {
+                   "prepare_url": "/area-queries", "query": filters,
+               }),
                "boundaries": json.loads((ASSETS / "data/vietnam_maritime_boundaries.geojson")
                                         .read_text(encoding="utf-8"))}
     css = (ASSETS / "vendor/leaflet.css").read_text(encoding="utf-8")
@@ -49,6 +52,7 @@ def render_map(payload: dict) -> str:
                             ("__BOUNDARY_HELPERS__", "maritime_boundaries.js"),
                             ("__CLASSIFIER_HELPERS__", "classifier_client.js")):
         replacements[token] = (ASSETS / filename).read_text(encoding="utf-8")
+    replacements["__AREA_CONTROLS__"] = (ASSETS / "area_controls.js").read_text(encoding="utf-8")
     html = (ASSETS / "vessel_map_template.html").read_text(encoding="utf-8")
     for token, value in replacements.items():
         html = html.replace(token, value)
@@ -57,8 +61,10 @@ def render_map(payload: dict) -> str:
 
 def render_map_artifact(result: dict) -> str:
     url = escape(result["map_url"], quote=True)
+    caption = ("Vẽ vùng truy vấn rồi bấm xác nhận" if result.get("status") == "needs_drawing"
+               else f"{result['total']} lượt quan sát")
     return f'''<!DOCTYPE html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bản đồ tàu</title><style>body{{margin:0;font-family:system-ui,sans-serif}}p{{margin:10px}}iframe{{width:100%;height:780px;border:0}}</style></head>
-<body><p>{result["total"]} lượt quan sát · <a href="{url}" target="_blank" rel="noopener">Mở bản đồ toàn màn hình</a></p>
+<body><p>{caption} · <a href="{url}" target="_blank" rel="noopener">Mở bản đồ toàn màn hình</a></p>
 <iframe src="{url}" title="Bản đồ tàu VesselWatch" allow="fullscreen"></iframe></body></html>'''

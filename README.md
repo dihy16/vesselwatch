@@ -1,4 +1,92 @@
-# Agent truy vấn tàu — level 1
+# Agent truy vấn tàu
+
+## Thử đọc ảnh bằng AI
+
+Tool `review_ship_images(observation_id)` đọc ảnh đầu tiên của một lượt quan sát,
+trả đặc điểm nhìn thấy, chất lượng ảnh, giới hạn đánh giá và đối chiếu với prediction
+đã lưu. Lấy `observation_id` từ `search_ships` hoặc `query_ships_in_area` trước.
+Trong chat có thể hỏi: “Phân tích ảnh của tàu [ID] và đối chiếu kết quả nhận dạng”.
+Tool có trong chế độ `demo` và `file_server`; mock không có ảnh thật.
+
+Model/endpoint phải hỗ trợ ảnh và trả JSON. Mặc định dùng cấu hình `OPENAI_MODEL`,
+`OPENAI_BASE_URL`, `OPENAI_API_KEY`; có thể cấu hình riêng trong `.env` bằng
+`OPENAI_VISION_MODEL`, `OPENAI_VISION_BASE_URL`, `OPENAI_VISION_API_KEY`.
+Biến vision để trống sẽ dùng giá trị tương ứng của agent.
+
+Chạy trực tiếp, không cần LLM điều phối hoặc server demo:
+
+```powershell
+# Xem các observation_id có sẵn trong bộ ảnh demo.
+python -c "from ship_agent.demo_data import load_demo_observations; print('\n'.join(o['observation_id'] for o in load_demo_observations()))"
+python -m ship_agent.image_review --data-source demo --observation-id <observation_id>
+```
+
+Với dữ liệu thật, chạy file server trước và dùng `--data-source file_server`.
+Tool tải ảnh qua `FILE_SERVER_URL` nội bộ rồi gửi nội dung ảnh dạng base64 đến
+vision endpoint; không yêu cầu endpoint truy cập URL localhost của file server.
+Demo đọc ảnh local đã kiểm tra hash. Giới hạn ảnh 10 MB và 16 triệu pixel;
+ảnh được chuẩn hóa PNG, không phóng to hoặc suy diễn thêm chi tiết.
+
+Lời gọi thị giác chỉ nhận ảnh, không nhận kích thước, nhãn hay score cũ. Kết quả
+`visual_review` được đối chiếu sau với `saved_prediction`; `comparison` là `agrees`,
+`disagrees` hoặc `inconclusive`. Ảnh không đủ rõ trả `unknown`. Nhận xét này không
+thay nhãn gốc và không phải ground truth hay xác suất đã được hiệu chuẩn.
+Hiển thị URL ảnh trong chat không tự động gọi đánh giá ảnh.
+
+Định dạng gửi ảnh tham khảo [OpenAI Images and vision](https://developers.openai.com/api/docs/guides/images-vision).
+
+## Truy vấn theo khu vực
+
+Tool `query_ships_in_area` hỗ trợ dữ liệu thật và demo, với đúng hai luồng:
+
+- **Biển Đông / Vịnh Bắc Bộ:** dùng polygon đã lưu từ Marine Regions (IHO / SeaVoX).
+- **Mọi khu vực khác hoặc mô tả mơ hồ:** mở bản đồ cho người dùng tự vẽ rectangle/polygon
+  rồi bấm **Xác nhận và hỏi agent**. Không tạo polygon gợi ý.
+
+Trên map hiện có, mở mục **Vùng truy vấn** trong panel Results. Rectangle được vẽ bằng
+cách chọn hai góc đối diện. Polygon được vẽ bằng cách bấm các đỉnh rồi chọn **Hoàn tất
+polygon**. Có thể xóa và vẽ lại trước khi xác nhận. Tên khu vực hiển thị bằng tiếng Việt.
+
+Backend lọc toàn bộ snapshot của nguồn theo ngày, vùng, kích thước và nhãn trước khi
+phân trang. `total` là số `observation_id` khác nhau, chưa phải số tàu duy nhất.
+`length_gt_m=250` nghĩa là chiều dài **lớn hơn** 250 m; nhãn tàu sân bay giữ nguyên
+prediction đã lưu. Điểm trên đường biên polygon được tính trong vùng.
+
+Nút xác nhận hiển thị số liệu backend, sau đó gọi agent LangGraph và hiện câu trả lời
+ngay trong map. Đây là lượt gọi riêng, chưa tự chèn vào thread Open WebUI đang mở.
+Để hỏi tiếp trong chat, sao chép **Mã vùng** trên map và đưa vào câu hỏi; agent dùng
+`area_id` đó cùng các bộ lọc mới. Nếu iframe chặn request, mở link **Mở bản đồ toàn
+màn hình** rồi thao tác. Khi agent lỗi, số liệu vẫn được giữ và có nút **Hỏi lại agent**.
+
+Cấu hình tại `ship_agent/config.py`:
+
+- `LANGGRAPH_URL`: địa chỉ LangGraph dữ liệu thật mà data server truy cập được.
+- `DEMO_LANGGRAPH_URL`: địa chỉ LangGraph chạy `langgraph.demo.json` mà server demo truy cập được.
+
+Cả hai mặc định `http://127.0.0.1:2024`; nếu chạy hai graph ở hai server, đặt URL/cổng
+tương ứng. API key vẫn nằm ở LangGraph, file server không cần đọc `.env`.
+Sau khi cập nhật, restart data server/demo server và LangGraph.
+
+Vùng vẽ được lưu dưới `data/area_queries/real` (đổi bằng `AREA_QUERY_DIR` trong
+`file_server/config.py`) hoặc `<demo_root>/area_queries` cho demo. Giữ thư mục này
+qua restart để mã vùng còn dùng được. Nếu snapshot dữ liệu thay đổi, mã cũ trả lỗi
+409 và cần tạo lại truy vấn vùng. Polygon có sẵn được đóng gói trong
+`file_server/area_data/`; `sources.json` ghi nguồn và SHA-256, không tải mạng khi chạy.
+
+Ví dụ:
+
+```text
+Từ 01/10/2026 đến 15/10/2026 có những tàu khả nghi nào trong Vịnh Bắc Bộ?
+Những tàu dài trên 250 m được quan sát ở những vị trí nào?
+Có bao nhiêu lượt nghi là tàu sân bay ở Biển Đông trong tháng vừa qua?
+Tìm tàu trong vùng biển quanh Hoàng Sa từ 01/10/2026 đến 15/10/2026.
+```
+
+Câu cuối sẽ mở map để người dùng tự vẽ. Bộ kiểm thử không gọi LLM/dịch vụ thật:
+
+```bash
+python -m pytest tests/file_server/test_spatial.py tests/file_server/test_area_queries.py tests/agent/test_area_map_ui.py tests/agent/test_area_agent.py tests/integration/test_area_client.py -q
+```
 
 ## FastAPI phục vụ dữ liệu thật trên MID
 

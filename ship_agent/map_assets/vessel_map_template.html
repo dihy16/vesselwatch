@@ -710,6 +710,12 @@
     /* This viewer displays a fixed, saved VesselWatch query. */
     #tab-query, #edit-query, #prediction-source, label[for="prediction-source"],
     #review-form, #review-summary, #export-reviews, .row-review { display: none !important; }
+    .area-controls { border: 1px solid #d1e1e5; border-radius: 8px; padding: 12px; margin: 12px 0; flex-shrink: 0; }
+    .area-controls summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+    .results-panel { overflow-y: auto; }
+    .area-controls select, .area-controls input { width: 100%; box-sizing: border-box; }
+    .area-controls .action-row { flex-wrap: wrap; gap: 6px; }
+    #area-answer { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; max-height: 300px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -763,6 +769,21 @@
           <label>Sort by<select id="queue-sort"><option value="score">Highest carrier score</option><option value="date">Newest capture first</option></select></label>
           <label><span class="threshold-line"><span>Carrier score threshold</span><output id="threshold-value">50%</output></span><input id="score-threshold" type="range" min="0" max="100" step="1" value="50"></label>
         </div>
+        <details id="area-controls" class="area-controls" aria-label="Truy vấn theo khu vực">
+          <summary>Vùng truy vấn</summary>
+          <label for="area-choice">Khu vực</label>
+          <select id="area-choice"><option value="custom">Vùng tùy ý</option><option value="bien_dong">Biển Đông</option><option value="vinh_bac_bo">Vịnh Bắc Bộ</option></select>
+          <p class="queue-status">Vẽ vùng trên bản đồ để truy vấn trong khoảng thời gian và bộ lọc của bản đồ này.</p>
+          <div class="action-row"><button id="area-rectangle" type="button">Vẽ rectangle</button><button id="area-polygon" type="button">Vẽ polygon</button></div>
+          <div class="action-row"><button id="area-finish" type="button">Hoàn tất polygon</button><button id="area-clear" type="button">Xóa vùng</button></div>
+          <button id="area-confirm" class="query-submit" type="button">Xác nhận và hỏi agent</button>
+          <p id="area-status" class="queue-status" role="status" aria-live="polite">Chọn khu vực có sẵn hoặc tự vẽ một vùng.</p>
+          <input id="area-reference" type="text" readonly aria-label="Mã vùng để dùng tiếp trong chat" placeholder="Mã vùng sau khi xác nhận">
+          <a id="area-result-link" target="_blank" rel="noopener" hidden>Mở toàn bộ kết quả trên bản đồ</a>
+          <div id="area-answer" role="status" aria-live="polite"></div>
+          <button id="area-retry" type="button" hidden>Hỏi lại agent</button>
+          <p class="queue-status">Nguồn polygon có sẵn: <a href="https://www.marineregions.org/sources.php" target="_blank" rel="noopener">Marine Regions · IHO / SeaVoX</a>.</p>
+        </details>
         <p id="load-progress" class="queue-status" role="status" hidden></p>
         <p id="classifier-status" class="queue-status" role="status" hidden></p>
         <p id="review-summary" class="queue-status" role="status">0 reviewed in this search</p>
@@ -831,6 +852,7 @@
       __RESULT_HELPERS__
       __REVIEW_HELPERS__
       __BOUNDARY_HELPERS__
+      __AREA_CONTROLS__
       __CLASSIFIER_HELPERS__
 
       const dataset = JSON.parse(document.getElementById("embedded-data").textContent);
@@ -1574,6 +1596,16 @@
       updateQueueStatus();
       clearResults();
       search();
+      AreaControls.attach({ map, L, document, config: dataset.area_query, onResults(ships) {
+        searchRecords = ships.map((row) => ({ id: row.observation_id, name: row.ship_id,
+          captured_at: row.observed_at, ...row.position,
+          image_url: row.images[0]?.url, image_path: row.images[0]?.url,
+          prediction: { carrier_score: row.confidence },
+          metadata: { source_id: row.ship_id, length_m: row.length_m, width_m: row.width_m,
+            classification: row.classification } }));
+        queueFilter.value = "all";
+        refreshQueue(false);
+      } });
     })();
   </script>
 </body>

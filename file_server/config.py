@@ -15,6 +15,9 @@ PREDICTIONS_PATH = "data/predictions.json"
 # URL reachable by the image viewer. Match the Uvicorn port to this URL.
 DATA_API_BASE_URL = "http://127.0.0.1:8001"
 
+# Keep confirmed custom areas across restarts (ignored local data).
+AREA_QUERY_DIR = Path("data/area_queries/real")
+
 
 @dataclass(frozen=True)
 class DataSettings:

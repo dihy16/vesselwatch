@@ -14,6 +14,8 @@ from file_server.carrier_reports import daily_carrier_report as aggregate_carrie
 from .file_server_client import FileServerError, load_daily_carrier_report, load_observations
 from .mock_data import build_observations
 from .map_snapshots import MapFilters, request_map
+from .area_client import request_area_query
+from file_server.area_models import AreaQueryInput
 
 DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
 Classification = Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"]
@@ -219,6 +221,47 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                                     "khởi động lại agent/server nếu đã đổi dữ liệu.") from exc
 
         query_tools.append(create_vessel_map)
+
+    if not is_mock:
+        @tool(args_schema=AreaQueryInput)
+        def query_ships_in_area(
+            area_name: str | None = None, area_id: str | None = None,
+            observed_from: str | None = None, observed_to: str | None = None,
+            classification: Classification | None = None, ship_id: str | None = None,
+            length_gt_m: float | None = None,
+            min_length_m: float | None = None, max_length_m: float | None = None,
+            min_width_m: float | None = None, max_width_m: float | None = None,
+            limit: int = 20, offset: int = 0,
+        ) -> dict:
+            """Truy vấn lượt phát hiện theo vùng, ngày, kích thước và nhãn.
+
+            Chỉ Biển Đông và Vịnh Bắc Bộ có polygon lưu sẵn. Mọi tên vùng khác
+            hoặc mô tả mơ hồ trả needs_drawing và map_url để người dùng tự vẽ,
+            xác nhận bằng nút trên map; không tự đoán vùng. area_id là mã vùng
+            người dùng đã xác nhận, không phải selection_id chưa được xác nhận.
+            Bỏ cả area_name/area_id để tìm vị trí toàn bộ dữ liệu (ví dụ tàu dài
+            trên 250 m: length_gt_m=250). Lọc toàn bộ nguồn trước khi phân trang.
+            total là số observation_id khác nhau, không phải số tàu duy nhất.
+            Nhãn aircraft_carrier dùng prediction đã lưu, không áp lại ngưỡng score.
+            Ngày YYYY-MM-DD, gồm hai đầu mốc; không có ngày thì tìm toàn bộ nguồn.
+            """
+            query = AreaQueryInput(
+                area_name=area_name, area_id=area_id, observed_from=observed_from,
+                observed_to=observed_to, classification=classification, ship_id=ship_id,
+                length_gt_m=length_gt_m, min_length_m=min_length_m, max_length_m=max_length_m,
+                min_width_m=min_width_m, max_width_m=max_width_m, limit=limit, offset=offset,
+            )
+            try:
+                return request_area_query(query.model_dump(), data_source=data_source)
+            except (httpx.HTTPError, ValueError) as exc:
+                raise ToolException("Chưa truy vấn được vùng. Kiểm tra data server và mã vùng; "
+                                    "nếu dữ liệu đã đổi, hãy tạo lại vùng.") from exc
+
+        query_tools.append(query_ships_in_area)
+
+    if not is_mock:
+        from .image_review import create_image_review_tool
+        query_tools.append(create_image_review_tool(observations, data_source=data_source))
 
     for query_tool in query_tools:
         query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"

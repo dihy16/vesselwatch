@@ -24,6 +24,12 @@ def create_app() -> FastAPI:
     ships = {row["ship_id"]: row for row in observations}
     app = FastAPI(title="VesselWatch recording demo — saved satellite crops")
 
+    from file_server.area_queries import register_area_routes
+    from ship_agent.demo_data import demo_root, public_base_url
+    register_area_routes(app, observations=lambda request: observations,
+                         public_url=lambda request: public_base_url(),
+                         storage_root=lambda: demo_root() / "area_queries", source="demo")
+
     @app.get("/health")
     def health():
         return {"status": "ok", "is_demo": True, "snapshot_id": snapshot["snapshot_id"],

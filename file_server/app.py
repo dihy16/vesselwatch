@@ -35,6 +35,14 @@ def create_app(settings: DataSettings | None = None) -> FastAPI:
 
     app = FastAPI(title="Vesselwatch data API", lifespan=lifespan)
 
+    from . import config
+    from .area_queries import register_area_routes
+    register_area_routes(
+        app, observations=lambda request: [o.model_dump() for o in request.app.state.store.observations],
+        public_url=lambda request: request.app.state.settings.base_url,
+        storage_root=lambda: config.AREA_QUERY_DIR, source="file_server",
+    )
+
     @app.get("/health")
     def health(request: Request):
         return {"status": "ok", "is_mock": False, "timezone": "UTC",

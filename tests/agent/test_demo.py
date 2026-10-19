@@ -134,7 +134,7 @@ def test_packaged_demo_matches_recording_plan_without_duplicate_carrier_crops(mo
     root = Path(__file__).resolve().parents[2] / "data/demo"
     monkeypatch.setenv("VESSELWATCH_DEMO_DIR", str(root))
     snapshot = read_snapshot()
-    count, search, report, _ = create_tools(data_source="demo")
+    count, search, report, *_ = create_tools(data_source="demo")
     carriers = search.invoke({"classification": "aircraft_carrier"})["ships"]
     assert len(snapshot["observations"]) == 11 and len(carriers) == 3
     ids = {row["ship_id"] for row in carriers}
@@ -160,7 +160,7 @@ def test_demo_search_counts_and_report_share_the_same_source(demo_snapshot, monk
     from ship_agent import tools as tools_module
     monkeypatch.setattr(tools_module, "load_observations", lambda: pytest.fail("No production API in demo"))
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *a: pytest.fail("No report HTTP in demo"))
-    count, search, report, _ = create_tools(data_source="demo")
+    count, search, report, *_ = create_tools(data_source="demo")
     found = search.invoke({"classification": "aircraft_carrier", "min_length_m": 330})
     assert found["reference_date"] == "2025-12-30"
     assert found["is_demo"] and not found["is_mock"]

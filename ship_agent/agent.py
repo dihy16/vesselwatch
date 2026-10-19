@@ -46,12 +46,15 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name == "create_vessel_map":
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area"}:
             if message.status == "error":
                 maps.clear()
             else:
                 result = json.loads(message.content)
-                maps[result["map_id"]] = result
+                if message.name == "query_ships_in_area":
+                    maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
+                if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
+                    maps[result.get("map_id", result.get("selection_id"))] = result
     return list(maps.values())
 
 
@@ -93,7 +96,12 @@ def build_agent(
                      if data_source == "demo" else "")
     image_note = ("Nói rõ đây là URL ảnh giả lập và bạn chưa phân tích nội dung ảnh."
                   if data_source == "mock" else
-                  "Đây là URL ảnh thật do file server phục vụ; bạn chưa tải hay phân tích nội dung ảnh.")
+                  "URL ảnh từ tool truy vấn chỉ dùng hiển thị; bạn chưa phân tích ảnh cho tới khi "
+                  "review_ship_images trả thành công. Khi yêu cầu đọc/phân tích ảnh hoặc kiểm tra lại "
+                  "nhận dạng, lấy observation_id bằng tool truy vấn rồi gọi review_ship_images. "
+                  "Dùng visual_review để mô tả ảnh; phân biệt với saved_prediction. "
+                  "Nếu comparison=disagrees, nói cần kiểm tra lại, không kết luận nhãn gốc sai. "
+                  "Nếu unknown/inconclusive, nói chưa đủ bằng chứng. Không coi review là ground truth.")
     confidence_note = ("Với danh sách tàu, đưa ship_url và độ tin cậy nếu có."
                        if data_source == "mock" else
                        "Với danh sách tàu, đưa ship_url và carrier score nếu có. confidence là score "
@@ -109,6 +117,16 @@ Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(d
 {map_note}
 Dùng count_ships cho thống kê theo ngày; search_ships cho danh sách, kích thước,
 phân loại hoặc xem riêng ship_id. Luôn dùng tool để lấy dữ liệu, không tự bịa số.
+Với truy vấn khu vực hoặc vị trí của tàu dài trên một mức, dùng query_ships_in_area
+nếu tool này có sẵn. Chỉ Biển Đông và Vịnh Bắc Bộ có vùng định nghĩa sẵn.
+Tên hiển thị và tên vùng truyền vào tool dùng tiếng Việt; gọi Biển Đông là Biển Đông.
+Mọi khu vực khác hoặc mô tả mơ hồ: gọi tool với area_name nguyên văn, nhận
+needs_drawing rồi mời người dùng tự vẽ rectangle/polygon và bấm xác nhận trên map.
+Hệ thống tự đính kèm map; không gợi ý hay tự tạo polygon để người dùng chỉnh sửa.
+Không kết luận không có tàu khi status là needs_drawing. Không tự bịa area_id.
+Nếu có area_id do người dùng cung cấp, dùng mã đó cùng đúng bộ lọc đang được hỏi.
+length_gt_m dùng cho chiều dài lớn hơn nghiêm ngặt (trên 250 m là length_gt_m=250).
+Kết quả truy vấn vùng đếm lượt phát hiện riêng theo observation_id, không đếm tàu duy nhất.
 Ngày truyền vào tool chỉ có YYYY-MM-DD, bao gồm cả hai đầu mốc.
 '7 ngày qua' là ngày tham chiếu và 6 ngày trước đó. Không có khoảng ngày thì
 search_ships tìm toàn bộ dữ liệu. Không tự thêm bộ lọc người dùng không yêu cầu.
