@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 import re
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 import httpx
@@ -20,6 +21,65 @@ from ship_agent.demo import create_app
 from ship_agent.demo_data import demo_image_markdown, image_path, read_snapshot
 from ship_agent.report_artifacts import render_carrier_artifact
 from ship_agent.tools import create_tools
+
+
+@pytest.mark.parametrize("invalid_id", [None, "missing", "duplicate"])
+def test_prepare_demo_preserves_source_ship_ids(tmp_path, monkeypatch, invalid_id):
+    from scripts import prepare_demo_data
+
+    source = tmp_path / "source"
+    demo = source / "demo"
+    demo.mkdir(parents=True)
+    run = demo / "run/offline_cloud_crop_staged"
+    run.mkdir(parents=True)
+    (demo / "local_config.json").write_text(json.dumps({
+        "manifest": "manifest.json", "saved_run_dir": "run",
+    }), encoding="utf-8")
+    (demo / "saved_run_results.py").write_text(
+        "def apply_saved_results(rows, run, seed):\n    pass\n", encoding="utf-8",
+    )
+    (run / "report.json").write_text(json.dumps({
+        "threshold": 0.5, "model": "test-model",
+    }), encoding="utf-8")
+    ship_ids = ["fb21fe76-1b74-4ee3-af60-be68f2e1b20b",
+                "S2C_MSIL2A_20250625T030601_N0511_R075_T49QCU_20250625T064400_0"]
+    rows, digests = [], []
+    for index, ship_id in enumerate(ship_ids):
+        raw = BytesIO()
+        Image.new("RGB", (4, 8), (index, 0, 0)).save(raw, format="PNG")
+        filename = f"crop-{index}.png"
+        (demo / filename).write_bytes(raw.getvalue())
+        digest = hashlib.sha256(raw.getvalue()).hexdigest()
+        digests.append(digest)
+        rows.append({
+            "id": f"observation-{index}", "name": filename, "image_path": filename,
+            "captured_at": "2025-12-30T02:00:00Z", "latitude": 19, "longitude": 112,
+            "prediction": {"carrier_score": 0.98},
+            "metadata": {"source_id": ship_id, "crop_sha256": digest,
+                         "ground_truth_label": "Carrier present", "length_m": 350, "width_m": 80},
+        })
+    if invalid_id == "missing":
+        del rows[0]["metadata"]["source_id"]
+    elif invalid_id == "duplicate":
+        rows[1]["metadata"]["source_id"] = ship_ids[0]
+    (demo / "manifest.json").write_text(json.dumps({
+        "image_root": ".", "vessels": rows,
+    }), encoding="utf-8")
+    monkeypatch.setattr(prepare_demo_data, "CARRIER_DIGESTS", tuple(digests))
+    output = tmp_path / "snapshot"
+    if invalid_id:
+        with pytest.raises(ValueError, match="Missing source ship ID|Duplicate source ship ID"):
+            prepare_demo_data.write_snapshot(source, output)
+        assert not output.exists()
+        return
+
+    snapshot = prepare_demo_data.write_snapshot(source, output)
+    monkeypatch.setenv("VESSELWATCH_DEMO_DIR", str(output))
+    assert read_snapshot() == snapshot
+    assert [row["ship_id"] for row in snapshot["observations"]] == ship_ids
+    for index, row in enumerate(snapshot["observations"]):
+        assert row["ship_id"] == row["source_id"]
+        assert image_path(row).read_bytes() == (demo / f"crop-{index}.png").read_bytes()
 
 
 @pytest.fixture
@@ -36,16 +96,17 @@ def demo_snapshot(tmp_path, monkeypatch):
         ("2025-12-30", True, 350), ("2025-12-25", False, 150),
         ("2025-06-25", True, 315),
     ], 1):
-        ship_id = f"DEMO_{index:03d}"
-        filename = ship_id + ".png"
+        ship_id = f"source-ship-{index}"
+        image_id = f"DEMO_{index:03d}"
+        filename = image_id + ".png"
         (images / filename).write_bytes(raw)
         rows.append({
-            "observation_id": f"source-observation-{index}", "ship_id": ship_id,
+            "observation_id": f"source-observation-{index}", "ship_id": ship_id, "source_id": ship_id,
             "observed_date": day, "observed_at": day + "T02:00:00Z",
             "length_m": length, "width_m": 80 if positive else 25,
             "position": {"latitude": 19.0, "longitude": 112.0},
             "classification": "aircraft_carrier" if positive else "not_aircraft_carrier",
-            "confidence": 0.98 if positive else 0.1, "image_id": ship_id,
+            "confidence": 0.98 if positive else 0.1, "image_id": image_id,
             "image_file": filename, "image_sha256": hashlib.sha256(raw).hexdigest(),
         })
     snapshot = {"schema_version": 1, "reference_date": "2025-12-30", "observations": rows}
@@ -69,11 +130,11 @@ def test_demo_search_counts_and_report_share_the_same_source(demo_snapshot, monk
     from ship_agent import tools as tools_module
     monkeypatch.setattr(tools_module, "load_observations", lambda: pytest.fail("No production API in demo"))
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *a: pytest.fail("No report HTTP in demo"))
-    count, search, report = create_tools(data_source="demo")
+    count, search, report, _ = create_tools(data_source="demo")
     found = search.invoke({"classification": "aircraft_carrier", "min_length_m": 330})
     assert found["reference_date"] == "2025-12-30"
     assert found["is_demo"] and not found["is_mock"]
-    assert [row["ship_id"] for row in found["ships"]] == ["DEMO_001"]
+    assert [row["ship_id"] for row in found["ships"]] == ["source-ship-1"]
     assert found["ships"][0]["images"][0]["url"] == "http://viewer:8002/images/DEMO_001"
     assert found["ships"][0]["observed_date"] == "2025-12-30"
     args = {"observed_from": "2025-12-24", "observed_to": "2025-12-30"}
@@ -93,7 +154,7 @@ def test_demo_artifact_embeds_only_matching_original_crops(demo_snapshot):
     html = render_carrier_artifact(report)
     images = re.findall(r'<img src="data:image/png;base64,([^"]+)"', html)
     assert len(images) == 1 and base64.b64decode(images[0]) == raw
-    assert "DEMO_001" in html and "DEMO_002" not in html and "DEMO_003" not in html
+    assert "source-ship-1" in html and "source-ship-2" not in html and "source-ship-3" not in html
     assert "BỘ DỮ LIỆU DEMO" in html and "không chạy nhận diện mới" in html
     assert "http://viewer" not in html
     report["demo_snapshot_id"] = "another snapshot"
@@ -110,10 +171,46 @@ def test_demo_image_api_enlarges_preview_but_preserves_original(demo_snapshot):
         with Image.open(BytesIO(preview.content)) as image:
             assert image.size == (240, 480)
         assert client.get("/images/DEMO_001?original=true").content == raw
-        assert client.get("/ships/DEMO_001").json()["observed_at"] == "2025-12-30T02:00:00Z"
+        assert client.get("/ships/source-ship-1").json()["observed_at"] == "2025-12-30T02:00:00Z"
         assert client.get("/images/missing").status_code == 404
         preview = client.get("/report-preview")
         assert preview.status_code == 200 and preview.text.count("<img ") == 1
+
+
+@pytest.mark.parametrize("last,expected_total", [("2025-12-30", 1), ("2025-12-29", 0)])
+def test_demo_chart_png_matches_tool_and_rejects_stale_urls(demo_snapshot, monkeypatch, last, expected_total):
+    import ship_agent.demo as demo_module
+
+    captured = []
+    render = demo_module.render_carrier_chart
+
+    def render_and_capture(report):
+        captured.append(report)
+        return render(report)
+
+    monkeypatch.setattr(demo_module, "render_carrier_chart", render_and_capture)
+    report = create_tools(data_source="demo")[2].invoke({
+        "observed_from": "2025-12-24", "observed_to": last, "output_format": "png",
+    })
+    assert report["output_format"] == "png" and report["total_detections"] == expected_total
+    url = urlsplit(report["chart_url"])
+    assert url.netloc == "viewer:8002" and url.path == "/charts/daily-carriers.png"
+    params = {key: values[0] for key, values in parse_qs(url.query).items()}
+    with TestClient(create_app()) as client:
+        response = client.get(url.path, params=params)
+        assert response.status_code == 200 and response.headers["content-type"] == "image/png"
+        with Image.open(BytesIO(response.content)) as image:
+            assert image.format == "PNG" and image.width > 1000 and image.height > 400
+        assert captured[0]["daily_stats"] == report["daily_stats"]
+        assert captured[0]["report_id"] == report["report_id"]
+        for field in ("report_id", "snapshot_id"):
+            assert client.get(url.path, params={**params, field: "0" * 64}).status_code == 409
+        for first, end in [("2025-12-31", last), ("2024-01-01", last), ("invalid", last)]:
+            assert client.get(url.path, params={
+                **params, "observed_from": first, "observed_to": end,
+            }).status_code == 422
+        assert client.get(url.path, params={**params, "report_id": "invalid"}).status_code == 422
+    assert len(captured) == 1
 
 
 def test_demo_rejects_modified_manifest_and_images(demo_snapshot):
@@ -135,11 +232,11 @@ def test_demo_refuses_paths_outside_registered_image_root(demo_snapshot):
 
 
 def test_demo_does_not_reuse_images_from_previous_turn_or_duplicate_markdown(demo_snapshot):
-    result = create_tools(data_source="demo")[1].invoke({"ship_id": "DEMO_001"})
+    result = create_tools(data_source="demo")[1].invoke({"ship_id": "source-ship-1"})
     tool = ToolMessage(content=json.dumps(result), name="search_ships", tool_call_id="search")
-    question = HumanMessage(content="Cho tôi xem ảnh DEMO_001")
+    question = HumanMessage(content="Cho tôi xem ảnh source-ship-1")
     markdown = demo_image_markdown([question, tool], "Thông tin tàu.")
-    assert markdown == "![DEMO_001](http://viewer:8002/images/DEMO_001)"
+    assert markdown == "![source-ship-1](http://viewer:8002/images/DEMO_001)"
     assert demo_image_markdown([question, tool], markdown) == ""
     assert demo_image_markdown([question, tool, HumanMessage(content="Cho tôi xem ảnh khác")], "") == ""
     assert demo_image_markdown([HumanMessage(content="Chưa cần hiển thị ảnh"), tool], "") == ""
@@ -148,8 +245,17 @@ def test_demo_does_not_reuse_images_from_previous_turn_or_duplicate_markdown(dem
 
 
 @pytest.mark.parametrize("stream", [False, True])
-def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, stream):
+@pytest.mark.parametrize("media", ["ship", "chart"])
+def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, stream, media):
     requests = []
+    tool_name = "search_ships" if media == "ship" else "daily_carrier_report"
+    arguments = ({"ship_id": "source-ship-1"} if media == "ship" else {
+        "observed_from": "2025-12-24", "observed_to": "2025-12-30", "output_format": "png",
+    })
+    expected_image = "![source-ship-1](http://viewer:8002/images/DEMO_001)"
+    if media == "chart":
+        report = create_tools(data_source="demo")[2].invoke(arguments)
+        expected_image = f"![Biểu đồ lượt dự đoán tàu sân bay theo ngày]({report['chart_url']})"
 
     def respond(request):
         body = json.loads(request.content)
@@ -159,14 +265,17 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
         if len(requests) == 1:
             message = {"role": "assistant", "content": None, "tool_calls": [{
                 "id": "search", "type": "function", "function": {
-                    "name": "search_ships", "arguments": '{"ship_id":"DEMO_001"}',
+                    "name": tool_name, "arguments": json.dumps(arguments),
                 },
             }]}
             reason = "tool_calls"
         else:
             result = json.loads(next(m["content"] for m in body["messages"] if m["role"] == "tool"))
-            assert result["ships"][0]["ship_id"] == "DEMO_001"
-            message = {"role": "assistant", "content": "Quan sát DEMO_001 trong bộ demo."}
+            if media == "ship":
+                assert result["ships"][0]["ship_id"] == "source-ship-1"
+            else:
+                assert result["output_format"] == "png" and result["total_detections"] == 1
+            message = {"role": "assistant", "content": "Kết quả trong bộ demo."}
             reason = "stop"
         if body.get("stream"):
             delta = dict(message)
@@ -189,7 +298,9 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
     with httpx.Client(transport=httpx.MockTransport(respond)) as client:
         model = ChatOpenAI(model="test", api_key="synthetic", http_client=client, max_retries=0)
         graph = build_agent(model=model, data_source="demo")
-        inputs = {"messages": [HumanMessage(content="Cho tôi xem ảnh tàu DEMO_001")]}
+        question = ("Cho tôi xem ảnh tàu source-ship-1" if media == "ship"
+                    else "Xuất ảnh chart PNG riêng từ 24/12/2025 đến 30/12/2025.")
+        inputs = {"messages": [HumanMessage(content=question)]}
         if stream:
             events = list(graph.stream(inputs, stream_mode="messages"))
             answers = [m for m, _ in events if isinstance(m, AIMessage) and not m.tool_calls and m.content]
@@ -198,4 +309,4 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
         else:
             answer = graph.invoke(inputs)["messages"][-1].content
     assert len(requests) == 2
-    assert answer.endswith("![DEMO_001](http://viewer:8002/images/DEMO_001)")
+    assert answer.endswith(expected_image) and "```html" not in answer

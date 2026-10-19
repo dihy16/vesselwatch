@@ -30,7 +30,7 @@ def render_carrier_artifact(report: dict) -> str:
         gallery = demo_gallery(report)
         date_note = "Giữ nguyên thời gian quan sát từ dữ liệu nguồn."
         scope_note = ("Phạm vi: tập mẫu demo trích từ ShipClassification, giữ nguyên ảnh và kết quả đã lưu. "
-                      "Bí danh DEMO là mã quan sát trong bản trình diễn, không phải tên tàu thực tế.")
+                      "ID tàu là source_id gốc trong dữ liệu nguồn, không xác nhận tên tàu thực tế.")
     empty = ('<p class="empty">Không có lượt dự đoán tàu sân bay trong khoảng ngày.</p>'
              if report["total_detections"] == 0 else "")
     return f"""<!DOCTYPE html>

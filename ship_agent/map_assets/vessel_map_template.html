@@ -1,0 +1,1580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  __LEAFLET_LICENSE__
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' https://tile.openstreetmap.org __CLASSIFIER_CONNECT_SOURCE__; base-uri 'none'; object-src 'none'">
+  <title>Vessel Positions</title>
+  <style id="leaflet-styles">__LEAFLET_CSS__</style>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #152332;
+      --muted: #657586;
+      --line: #dce4e9;
+      --paper: #ffffff;
+      --canvas: #f3f6f7;
+      --navy: #102a43;
+      --blue: #167d9a;
+      --blue-dark: #0e647c;
+      --sea: #d9edf0;
+      --orange: #e07b43;
+      --green: #23836e;
+      --shadow: 0 14px 34px rgba(15, 42, 67, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    [hidden] { display: none !important; }
+
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      overflow: hidden;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button:disabled { opacity: .45; cursor: default; }
+
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(22, 125, 154, .24);
+      outline-offset: 2px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 294px minmax(320px, 1fr) 352px;
+      height: 100dvh;
+      min-height: 0;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      background: var(--paper);
+    }
+
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 25px 20px 18px;
+      overflow: hidden;
+    }
+
+
+
+
+
+
+    .eyebrow {
+      margin: 0 0 9px;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    .side-heading {
+      margin: 0;
+      color: var(--navy);
+      font-size: 25px;
+      font-weight: 740;
+      letter-spacing: -.045em;
+      line-height: 1.12;
+    }
+
+    .side-intro {
+      margin: 10px 0 25px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .sample-notice {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      padding: 11px 12px;
+      margin: 0 0 24px;
+      border: 1px solid #f2d6bc;
+      border-radius: 10px;
+      background: #fff8f1;
+      color: #7c4d2d;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .sample-notice[hidden] { display: none; }
+
+    .sample-dot {
+      flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--orange);
+    }
+
+    .sidebar-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      margin: 0 0 22px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #f4f7f8;
+    }
+
+    .sidebar-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 37px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #667887;
+      font-size: 11px;
+      font-weight: 760;
+      cursor: pointer;
+      transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    }
+
+    .sidebar-tab:hover { color: var(--navy); }
+
+    .sidebar-tab[aria-selected="true"] {
+      background: var(--paper);
+      color: var(--navy);
+      box-shadow: 0 1px 5px rgba(15, 42, 67, .10);
+    }
+
+    .tab-badge {
+      display: inline-grid;
+      min-width: 19px;
+      height: 19px;
+      padding: 0 5px;
+      place-items: center;
+      border-radius: 99px;
+      background: #e2eef0;
+      color: var(--blue-dark);
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .sidebar-tab[aria-selected="true"] .tab-badge { background: #d8edef; }
+
+    .tab-panel {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .tab-panel[hidden] { display: none; }
+
+    .query-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .query-card {
+      padding: 15px;
+      border: 1px solid #e5ebee;
+      border-radius: 12px;
+      background: #fbfcfd;
+    }
+
+    .query-submit {
+      width: 100%;
+      min-height: 41px;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--navy);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 760;
+      cursor: pointer;
+      transition: background .15s ease, transform .15s ease;
+    }
+
+    .query-submit:hover { background: var(--blue-dark); }
+    .query-submit:active { transform: translateY(1px); }
+
+    .results-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .queue-controls { display: grid; gap: 9px; margin-bottom: 12px; }
+    .queue-controls label { display: grid; gap: 5px; font-size: 11px; color: var(--muted); }
+    select { width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 8px; background: #fff; color: var(--ink); }
+    .threshold-line { display: flex; justify-content: space-between; }
+    .queue-status { font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.5; }
+    .action-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .action-row button, .action-row a { padding: 7px 9px; border: 1px solid var(--line); background: #f8fafb; color: var(--navy); border-radius: 7px; cursor: pointer; font-size: 11px; text-decoration: none; }
+    .row-score { display: block; font-size: 10px; margin-top: 4px; color: var(--blue-dark); }
+    .row-review { display: block; margin-top: 4px; color: var(--green); font-size: 10px; }
+    .review-form { display: grid; gap: 10px; margin: 18px 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafb; }
+    .review-form h3, .review-form p, .review-form .action-row { margin: 0; }
+    .review-form label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+    .review-form input, .review-form textarea { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); }
+    .review-form textarea { resize: vertical; }
+    .review-form button[type="submit"] { background: var(--blue-dark); color: #fff; }
+    .ship-marker.carrier-candidate { filter: drop-shadow(0 0 4px rgba(224, 123, 67, .75)); }
+    dialog { width: min(1100px, 94vw); max-height: 94dvh; border: 1px solid var(--line); border-radius: 12px; padding: 18px; color: var(--ink); }
+    dialog::backdrop { background: rgba(16, 42, 67, .65); }
+    .inspection-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .inspection-header h2 { margin: 0; font-size: 16px; }
+    .inspection-viewport { height: 60dvh; overflow: auto; background: #eaf2f4; border-radius: 8px; }
+    .inspection-stage { position: relative; min-width: 1px; }
+    .inspection-stage img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+    .inspection-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .inspection-stage polygon { fill: none; stroke: #ff7c32; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .inspection-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; font-size: 12px; }
+    .inspection-toolbar button, .inspection-header button { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: #fff; cursor: pointer; }
+    .inspection-toolbar input[type="range"] { width: 140px; }
+    .inspection-toolbar label { display: inline-flex; align-items: center; gap: 5px; }
+
+    .results-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 13px;
+      padding: 10px 11px;
+      border: 1px solid #e5ebee;
+      border-radius: 9px;
+      background: #f8fafb;
+    }
+
+    .results-range {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      color: var(--navy);
+      line-height: 1.25;
+    }
+
+    .results-range strong {
+      display: block;
+      color: var(--blue-dark);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .results-range span { font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+
+    .edit-query {
+      flex: 0 0 auto;
+      padding: 6px 8px;
+      border: 1px solid #d9e3e8;
+      border-radius: 7px;
+      background: #fff;
+      color: var(--blue-dark);
+      font-size: 9px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 11px;
+      color: #536677;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-bottom: 10px;
+    }
+
+    .date-field label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .date-control { position: relative; }
+
+    .date-control input[type="text"] {
+      width: 100%;
+      min-width: 0;
+      height: 39px;
+      padding: 0 35px 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      color: var(--ink);
+      font-size: 11px;
+    }
+
+    .date-control input[type="date"] {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 32px;
+      height: 39px;
+      padding: 0;
+      border: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    .date-control input[type="date"]::-webkit-calendar-picker-indicator {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .date-control:focus-within { outline: 2px solid var(--blue); border-radius: 8px; }
+    .date-control input[aria-invalid="true"] { border-color: #dc2626; }
+    .calendar-icon {
+      position: absolute;
+      right: 9px;
+      top: 12px;
+      width: 15px;
+      height: 15px;
+      pointer-events: none;
+    }
+
+    .date-caption {
+      margin: 0 0 23px;
+      color: #82909b;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .records-heading { margin-bottom: 14px; padding: 12px 14px; border-radius: 10px; background: #e7f3f4; color: var(--navy); font-size: 14px; letter-spacing: 0; }
+
+    .record-count {
+      color: var(--blue-dark);
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vessel-list {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+      padding: 0 2px 3px 0;
+      overflow: auto;
+    }
+
+    .vessel-row {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr) auto;
+      align-items: center;
+      width: 100%;
+      min-height: 54px;
+      padding: 7px 9px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .vessel-row:hover, .vessel-row[aria-current="true"] {
+      border-color: #d9e9eb;
+      background: #f3f9fa;
+    }
+    .vessel-row[aria-current="true"] { background: #fff0ee; border-color: #e45b50; box-shadow: inset 3px 0 #e45b50; }
+    .vessel-row[aria-current="true"] .row-mark { color: white; background: #d94338; border-color: #d94338; }
+
+    .row-mark {
+      display: grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      border: 1px solid #bbdadd;
+      border-radius: 50%;
+      background: white;
+      color: var(--blue-dark);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .row-name {
+      display: block;
+      overflow: hidden;
+      color: var(--navy);
+      font-size: 11px;
+      font-weight: 730;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-date {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .row-arrow { color: #91a0ac; font-size: 17px; }
+
+    .list-empty {
+      padding: 14px 10px;
+      border: 1px dashed var(--line);
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+
+    .map-column {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      background: var(--sea);
+    }
+
+    #map { width: 100%; height: 100%; background: #dcecef; }
+
+
+
+
+
+
+    .tile-error {
+      position: absolute;
+      z-index: 500;
+      right: 16px;
+      top: 17px;
+      display: none;
+      max-width: 240px;
+      padding: 9px 11px;
+      border: 1px solid #f2d6bc;
+      border-radius: 8px;
+      background: #fff8f1;
+      color: #7c4d2d;
+      font-size: 10px;
+    }
+
+    .tile-error.visible { display: block; }
+
+    .tile-error { top: auto; bottom: 35px; }
+
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      padding: 25px 22px 21px;
+      overflow: auto;
+    }
+
+    .detail-topline {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      margin-bottom: 22px;
+    }
+
+    .detail-label {
+      margin: 0;
+      color: #536677;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .image-frame {
+      position: relative;
+      display: grid;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid #e6ecef;
+      border-radius: 12px;
+      background: #eaf2f4;
+    }
+
+    .image-frame img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .image-fallback {
+      padding: 18px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .image-fallback[hidden] { display: none; }
+
+    .image-caption {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      padding: 5px 7px;
+      border: 1px solid rgba(255,255,255,.65);
+      border-radius: 6px;
+      background: rgba(255,255,255,.88);
+      color: #60717f;
+      font-size: 9px;
+      font-weight: 650;
+    }
+
+    .detail-heading {
+      margin: 20px 0 4px;
+      color: var(--navy);
+      font-size: 22px;
+      font-weight: 760;
+      letter-spacing: -.04em;
+      overflow-wrap: anywhere;
+    }
+
+    .detail-id {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .detail-section-title {
+      margin: 0 0 8px;
+      color: #536677;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .detail-table {
+      margin: 0;
+      border-top: 1px solid #e9eef1;
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr);
+      gap: 9px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e9eef1;
+    }
+
+    .detail-row dt { color: var(--muted); font-size: 10px; }
+    .detail-row dd { margin: 0; color: var(--ink); font-size: 10px; font-weight: 650; overflow-wrap: anywhere; }
+
+    .empty-selection {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty-icon {
+      display: grid;
+      width: 54px;
+      height: 54px;
+      margin-bottom: 15px;
+      place-items: center;
+      border: 1px solid #e3ebee;
+      border-radius: 16px;
+      background: #f5f9fa;
+      color: #7a9ba4;
+    }
+
+    .empty-icon svg { width: 26px; height: 26px; }
+
+    .empty-title { margin: 0 0 6px; color: var(--navy); font-size: 13px; font-weight: 740; }
+    .empty-copy { max-width: 210px; margin: 0; font-size: 11px; line-height: 1.5; }
+
+    .right-footer {
+      padding-top: 15px;
+      margin-top: auto;
+      border-top: 1px solid #edf1f3;
+      color: #87949e;
+      font-size: 9px;
+      line-height: 1.5;
+    }
+
+    .leaflet-container { font: inherit; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+    .leaflet-control-zoom { border: 1px solid #dce4e9 !important; box-shadow: 0 4px 15px rgba(15,42,67,.1) !important; }
+    .leaflet-control-zoom a { color: var(--navy) !important; }
+    .leaflet-bar a:first-child { border-radius: 7px 7px 0 0 !important; }
+    .leaflet-bar a:last-child { border-radius: 0 0 7px 7px !important; }
+
+    .ship-map-icon { background: none; border: 0; }
+    .ship-map-icon:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+      border-radius: 5px;
+    }
+
+    .ship-marker {
+      position: relative;
+      display: block;
+      width: 32px;
+      height: 32px;
+      transform-origin: center;
+    }
+
+    .ship-marker-glyph {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background-image: url("__VESSEL_MARKER_DATA_URL__");
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: contain;
+      transform-origin: center;
+      transition: transform .15s ease;
+    }
+
+    .ship-marker.is-selected .ship-marker-glyph {
+      background-image: url("__VESSEL_MARKER_SELECTED_DATA_URL__");
+      transform: scale(1.18);
+    }
+    .ship-marker.is-selected { border-radius: 50%; box-shadow: 0 0 0 3px rgba(217,67,56,.45), 0 0 0 6px rgba(255,255,255,.8); }
+    .ship-marker-number { position: absolute; top: -7px; right: -12px; min-width: 18px; padding: 2px 3px; border: 1px solid #8ab5bf; border-radius: 9px; background: white; color: var(--navy); text-align: center; font: 800 9px/1.2 sans-serif; }
+    .ship-marker.is-selected .ship-marker-number { background: #d94338; color: white; border-color: #d94338; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ship-marker, .ship-marker-glyph { transition: none; }
+    }
+
+    @media (max-width: 1080px) {
+      .shell { grid-template-columns: 255px minmax(300px, 1fr) 310px; }
+      .left-panel { padding-right: 16px; padding-left: 16px; }
+      .right-panel { padding-right: 18px; padding-left: 18px; }
+    }
+
+    @media (max-width: 900px), (max-height: 560px) {
+      body { overflow: auto; }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        gap: 1px;
+      }
+      .left-panel { order: 1; padding: 18px; }
+      .map-column { order: 2; flex: 0 0 56dvh; min-height: 360px; }
+      .right-panel { order: 3; min-height: 360px; padding: 20px 18px; }
+      .side-intro { margin-bottom: 17px; }
+      .sample-notice { margin-bottom: 16px; }
+      .vessel-list { max-height: 190px; flex: initial; }
+      .tile-error { top: auto; bottom: 35px; right: 12px; max-width: 175px; }
+    }
+  </style>
+  <style>
+    /* This viewer displays a fixed, saved VesselWatch query. */
+    #tab-query, #edit-query, #prediction-source, label[for="prediction-source"],
+    #review-form, #review-summary, #export-reviews, .row-review { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="panel left-panel" aria-label="Vessel date filters">
+      <div class="sidebar-tabs" role="tablist" aria-label="Vessel search workflow">
+        <button id="tab-query" class="sidebar-tab" type="button" role="tab" aria-selected="true" aria-controls="panel-query">Search</button>
+        <button id="tab-results" class="sidebar-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-results">Results <span id="tab-result-count" class="tab-badge">0</span></button>
+      </div>
+
+      <section id="panel-query" class="tab-panel query-panel" role="tabpanel" aria-labelledby="tab-query">
+        <p id="dataset-context" class="queue-status" hidden></p>
+        <div class="query-card">
+          <div class="section-label"><span>Capture date range</span></div>
+          <div class="date-grid">
+            <div class="date-field">
+              <label for="date-start-display">From (UTC)</label>
+              <div class="date-control">
+                <input id="date-start-display" type="text" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" aria-label="Start date in UTC, DD/MM/YYYY" autocomplete="off">
+                <svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                <input id="date-start" type="date" aria-label="Choose start date from calendar">
+              </div>
+            </div>
+            <div class="date-field">
+              <label for="date-end-display">To (UTC)</label>
+              <div class="date-control">
+                <input id="date-end-display" type="text" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" aria-label="End date in UTC, DD/MM/YYYY" autocomplete="off">
+                <svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                <input id="date-end" type="date" aria-label="Choose end date from calendar">
+              </div>
+            </div>
+          </div>
+          <p id="search-status" class="date-caption" role="status" aria-live="polite" hidden></p>
+          <label for="prediction-source">Prediction source</label>
+          <select id="prediction-source"><option value="saved" selected>Saved run results</option><option value="backend">Live backend</option></select>
+          <button id="apply-query" class="query-submit" type="button">Show results</button>
+        </div>
+      </section>
+
+      <section id="panel-results" class="tab-panel results-panel" role="tabpanel" aria-labelledby="tab-results" hidden>
+        <div class="results-summary">
+          <div id="results-range" class="results-range"><strong>Current search</strong><span>—</span></div>
+          <button id="edit-query" class="edit-query" type="button">Edit</button>
+        </div>
+        <div class="section-label records-heading" role="status" aria-live="polite">
+          <span>Results</span>
+          <span id="record-count" class="record-count">0</span>
+        </div>
+        <div class="queue-controls">
+          <label>Show<select id="queue-filter"><option value="all">Results</option><option value="candidates">Carrier candidates</option><option value="unreviewed">Unreviewed</option></select></label>
+          <label>Sort by<select id="queue-sort"><option value="score">Highest carrier score</option><option value="date">Newest capture first</option></select></label>
+          <label><span class="threshold-line"><span>Carrier score threshold</span><output id="threshold-value">50%</output></span><input id="score-threshold" type="range" min="0" max="100" step="1" value="50"></label>
+        </div>
+        <p id="load-progress" class="queue-status" role="status" hidden></p>
+        <p id="classifier-status" class="queue-status" role="status" hidden></p>
+        <p id="review-summary" class="queue-status" role="status">0 reviewed in this search</p>
+        <div class="action-row"><button id="export-reviews" type="button" disabled>Export reviews CSV</button></div>
+        <div id="vessel-list" class="vessel-list" aria-live="polite"></div>
+      </section>
+
+    </aside>
+
+    <main class="map-column" aria-label="Vessel map">
+      <div id="tile-error" class="tile-error" role="status">Map tiles are unavailable. Check your internet connection.</div>
+      <div id="map" role="application" aria-label="Interactive map with vessel positions"></div>
+    </main>
+
+    <aside class="panel right-panel" aria-label="Selected vessel details">
+      <div class="detail-topline">
+        <p class="detail-label">Image &amp; metadata</p>
+      </div>
+      <div id="detail-empty" class="empty-selection">
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="9" r="1.5" stroke="currentColor" stroke-width="1.5"/><path d="m4 17 5-4 3 2 3-3 5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <p id="detail-empty-title" class="empty-title">Ready to search</p>
+        <p id="detail-empty-copy" class="empty-copy">Choose a date range and select Show results.</p>
+      </div>
+      <section id="detail-content" hidden>
+        <div class="image-frame">
+          <img id="vessel-image" alt="Selected vessel image">
+          <div id="image-fallback" class="image-fallback" hidden>Image could not be displayed.</div>
+          <span class="image-caption">IMAGE PREVIEW</span>
+        </div>
+        <div class="action-row"><button id="inspect-image" type="button">Inspect image</button><button id="retry-image" type="button" hidden>Retry image</button><button id="refresh-images" type="button" hidden>Refresh image links</button></div>
+        <h2 id="vessel-title" class="detail-heading"></h2>
+        <form id="review-form" class="review-form">
+          <h3 class="detail-section-title">Human review</h3>
+          <p class="queue-status">Your assessment of this detection is saved in this browser.</p>
+          <label for="review-label">Review label<select id="review-label" required><option value="">Choose a label</option><option>Carrier present</option><option>Carrier absent</option><option>Uncertain</option></select></label>
+          <label for="reviewer">Reviewer (optional)<input id="reviewer" type="text" maxlength="80" autocomplete="off"></label>
+          <label for="review-notes">Notes (optional)<textarea id="review-notes" rows="3" maxlength="2000"></textarea></label>
+          <div class="action-row"><button type="submit">Save review</button></div>
+          <p id="review-status" class="queue-status" role="status" aria-live="polite"></p>
+        </form>
+        <h3 class="detail-section-title">Capture details</h3>
+        <dl id="detail-table" class="detail-table"></dl>
+      </section>
+    </aside>
+  </div>
+
+  <dialog id="inspection-dialog" aria-labelledby="inspection-title">
+    <div class="inspection-header"><h2 id="inspection-title">Image inspection</h2><button id="close-inspection" type="button">Close</button></div>
+    <div class="inspection-toolbar">
+      <button id="view-crop" type="button" aria-pressed="true">Detection crop</button><button id="view-context" type="button" aria-pressed="false">Scene context</button>
+      <label>Zoom <input id="inspection-zoom" type="range" min="25" max="800" step="25" value="100"><output id="zoom-value">100%</output></label>
+      <button id="original-size" type="button">Original size</button><button id="fit-image" type="button">Fit</button>
+      <label><input id="show-obb" type="checkbox" checked>Bounding box</label>
+    </div>
+    <p id="inspection-status" class="queue-status" role="status"></p>
+    <div id="inspection-viewport" class="inspection-viewport"><div id="inspection-stage" class="inspection-stage"><img id="inspection-image" alt="Selected observation at inspection scale"><svg id="inspection-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon id="inspection-obb"></polygon></svg></div></div>
+  </dialog>
+
+  <script id="embedded-data" type="application/json">__VESSEL_DATA__</script>
+  <script>__LEAFLET_JS__</script>
+  <script>
+    (() => {
+      "use strict";
+      __RESULT_HELPERS__
+      __REVIEW_HELPERS__
+      __BOUNDARY_HELPERS__
+      __CLASSIFIER_HELPERS__
+
+      const dataset = JSON.parse(document.getElementById("embedded-data").textContent);
+      const api = dataset.api;
+      let reviewStorage;
+      try { reviewStorage = window.localStorage; } catch { /* Session-only review remains available. */ }
+      const reviewStore = Review.reviewStore(reviewStorage, "vessel-map-reviews-v1");
+      const startInput = document.getElementById("date-start");
+      const endInput = document.getElementById("date-end");
+      const countElement = document.getElementById("record-count");
+      const tabResultCount = document.getElementById("tab-result-count");
+      const vesselList = document.getElementById("vessel-list");
+      const queryTab = document.getElementById("tab-query");
+      const resultsTab = document.getElementById("tab-results");
+      const queryPanel = document.getElementById("panel-query");
+      const resultsPanel = document.getElementById("panel-results");
+      const applyQueryButton = document.getElementById("apply-query");
+      const editQueryButton = document.getElementById("edit-query");
+      const resultsRange = document.getElementById("results-range");
+      const detailEmpty = document.getElementById("detail-empty");
+      const detailContent = document.getElementById("detail-content");
+      const detailTable = document.getElementById("detail-table");
+      const vesselImage = document.getElementById("vessel-image");
+      const imageFallback = document.getElementById("image-fallback");
+      const tileError = document.getElementById("tile-error");
+      const searchStatus = document.getElementById("search-status");
+      const element = (id) => document.getElementById(id);
+      const queueFilter = element("queue-filter");
+      const queueSort = element("queue-sort");
+      const scoreThreshold = element("score-threshold");
+      const inspectionDialog = element("inspection-dialog");
+      const inspectionImage = element("inspection-image");
+      let searchRecords = [];
+      let queueRecords = [];
+      let hasSearched = false;
+      let selectedVessel = null;
+      let inspectionKind = "crop";
+      let inspectionVersion = 0;
+
+      const map = L.map("map", {
+        preferCanvas: true,
+        zoomControl: true,
+        scrollWheelZoom: true,
+        worldCopyJump: true
+      }).setView([16.2, 115.5], 5);
+
+      const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        minZoom: 2,
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · <a href="https://www.marineregions.org/sources.php" target="_blank" rel="noopener">Marine Regions / VLIZ (2023), CC BY 4.0</a>',
+        keepBuffer: 0,
+        updateWhenIdle: true
+      }).addTo(map);
+
+      tiles.on("tileerror", () => tileError.classList.add("visible"));
+      tiles.on("tileload", () => tileError.classList.remove("visible"));
+      Maritime.attach(map, L, element, dataset.boundaries);
+
+      const markerLayer = L.layerGroup().addTo(map);
+      const markers = new Map();
+      let selectedId = null;
+      let selectedMarker = null;
+      let searchVersion = 0;
+      let searchController = null;
+
+      function httpUrl(value, base = window.location.href) {
+        if (typeof value !== "string" || !value.trim()) throw new Error("Missing URL.");
+        const url = new URL(value, base);
+        if (!["http:", "https:"].includes(url.protocol)) throw new Error("Unsupported URL.");
+        return url;
+      }
+
+      function utcDay(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Choose both capture dates.");
+        const day = new Date(`${value}T00:00:00Z`);
+        if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== value) {
+          throw new Error("Choose valid capture dates.");
+        }
+        return day;
+      }
+
+      function timestampBoundary(date) {
+        switch (api.timestampFormat) {
+          case "unix-seconds": return String(date.getTime() / 1000);
+          case "unix-milliseconds": return String(date.getTime());
+          case "compact": return date.toISOString().replace(/\D/g, "").slice(0, 14);
+          default: throw new Error("Unsupported API timestamp format.");
+        }
+      }
+
+      function captureTime(record) {
+        const value = record.captured_at ?? record.date?.$date;
+        let time;
+        if (typeof value === "string" && /(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+          // Reject impossible calendar dates rather than accepting Date's rollover.
+          utcDay(value.slice(0, 10));
+          time = new Date(value);
+        } else {
+          const seconds = record.timestamp?.$numberLong ?? record.timestamp;
+          if (!["number", "string"].includes(typeof seconds) ||
+              !/^-?\d+(?:\.\d+)?$/.test(String(seconds))) {
+            throw new Error("A result has an invalid capture timestamp.");
+          }
+          time = new Date(Number(seconds) * 1000);
+        }
+        if (!Number.isFinite(time.getTime())) throw new Error("A result has an invalid capture timestamp.");
+        return time.toISOString();
+      }
+
+      function normalizeRecords(payload, requestUrl) {
+        const rows = Array.isArray(payload) ? payload : payload?.vessels;
+        if (!Array.isArray(rows)) throw new Error("The API did not return a list of observations.");
+        const ids = new Set();
+        return rows.map((row) => {
+          if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid observation.");
+          const rawId = row._id ?? row.id;
+          if (!["string", "number"].includes(typeof rawId) || !String(rawId).trim()) {
+            throw new Error("A result is missing its observation ID.");
+          }
+          const id = String(rawId);
+          if (ids.has(id)) throw new Error("The API returned duplicate observation IDs.");
+          ids.add(id);
+          const missingPosition = row.position_status === "unavailable" && row.latitude == null && row.longitude == null;
+          const coordinates = missingPosition ? [null, null] : [row.latitude, row.longitude].map((value) => {
+            if (!["number", "string"].includes(typeof value) || !String(value).trim() ||
+                !Number.isFinite(Number(value))) throw new Error("A result has invalid coordinates.");
+            return Number(value);
+          });
+          if (Math.abs(coordinates[0]) > 90 || Math.abs(coordinates[1]) > 180) {
+            throw new Error("A result has invalid coordinates.");
+          }
+          let imageUrl;
+          if (row.image_url) {
+            imageUrl = httpUrl(row.image_url, requestUrl).href;
+          } else {
+            const name = row.image_name ?? row.metadata?.image_name ?? id;
+            if (typeof name !== "string" || !name.trim()) throw new Error("Invalid image name.");
+            const url = httpUrl(api.imageUrl);
+            url.searchParams.set(api.imageNameParam, name);
+            imageUrl = url.href;
+          }
+          return {
+            id, name: typeof row.name === "string" ? row.name : undefined,
+            captured_at: captureTime(row), latitude: coordinates[0], longitude: coordinates[1],
+            image_url: imageUrl, heading: row.heading,
+            prediction: row.prediction ?? row.metadata?.prediction,
+            classification_error: row.classification_error,
+            obb: Results.polygon(row.obb ?? row.metadata?.obb),
+            context_obb: Results.polygon(row.context_obb ?? row.metadata?.context_obb),
+            context_image_url: row.context_image_url ? httpUrl(row.context_image_url, requestUrl).href : undefined,
+            metadata: { ...row, ...(row.metadata || {}) }
+          };
+        });
+      }
+
+      function switchTab(name, focusTab = false) {
+        const showQuery = name === "query";
+        queryTab.setAttribute("aria-selected", showQuery ? "true" : "false");
+        resultsTab.setAttribute("aria-selected", showQuery ? "false" : "true");
+        queryPanel.hidden = !showQuery;
+        resultsPanel.hidden = showQuery;
+        if (focusTab) (showQuery ? queryTab : resultsTab).focus();
+      }
+
+      queryTab.addEventListener("click", () => switchTab("query"));
+      resultsTab.addEventListener("click", () => switchTab("results"));
+      editQueryButton.addEventListener("click", () => switchTab("query", true));
+
+      function datePart(timestamp) {
+        return new Date(timestamp).toISOString().slice(0, 10);
+      }
+
+      function hasLocation(vessel) {
+        return Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude);
+      }
+
+      function prettyDate(date) {
+        const [year, month, day] = date.split("-");
+        return `${day}/${month}/${year}`;
+      }
+
+      function displayTime(timestamp) {
+        const utc = new Date(timestamp).toISOString();
+        return `${prettyDate(utc.slice(0, 10))} ${utc.slice(11, 16)} UTC`;
+      }
+
+      function vesselHeading(vessel) {
+        // Degrees clockwise from north; ignore empty or invalid heading values.
+        for (const value of [vessel.heading, vessel.metadata?.heading]) {
+          if (typeof value !== "number" && typeof value !== "string") continue;
+          if (typeof value === "string" && !value.trim()) continue;
+          const degrees = Number(value);
+          if (Number.isFinite(degrees)) return ((degrees % 360) + 360) % 360;
+        }
+        return 0;
+      }
+
+      function shipIcon(vessel, active, number) {
+        const ship = document.createElement("span");
+        ship.className = "ship-marker";
+        ship.classList.toggle("is-selected", active);
+        const prediction = Results.prediction(vessel);
+        ship.classList.toggle("carrier-candidate", prediction.score !== null && prediction.score >= threshold());
+        ship.setAttribute("aria-hidden", "true");
+        ship.style.transform = `rotate(${vesselHeading(vessel)}deg)`;
+
+        const glyph = document.createElement("span");
+        glyph.className = "ship-marker-glyph";
+        ship.append(glyph);
+        const badge = document.createElement("span");
+        badge.className = "ship-marker-number";
+        badge.textContent = String(number).padStart(2, "0");
+        badge.style.transform = `rotate(${-vesselHeading(vessel)}deg)`;
+        ship.append(badge);
+
+        return L.divIcon({
+          className: "ship-map-icon",
+          html: ship,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          tooltipAnchor: [0, -18]
+        });
+      }
+
+      function setMarkerStyle(marker, active) {
+        marker.getElement()?.querySelector(".ship-marker")?.classList.toggle("is-selected", active);
+        marker.getElement()?.setAttribute("aria-current", active ? "true" : "false");
+        marker.setZIndexOffset(active ? 1000 : 0);
+      }
+
+      function showEmptyDetails() {
+        detailEmpty.hidden = false;
+        detailContent.hidden = true;
+        vesselImage.removeAttribute("src");
+        imageFallback.hidden = true;
+        selectedVessel = null;
+        element("retry-image").hidden = true;
+        element("refresh-images").hidden = true;
+        if (inspectionDialog.open) inspectionDialog.close();
+        clearInspection();
+      }
+
+      function appendDetail(label, value) {
+        const row = document.createElement("div");
+        row.className = "detail-row";
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = String(value);
+        row.append(term, description);
+        detailTable.append(row);
+      }
+
+      function showDetails(vessel) {
+        selectedVessel = vessel;
+        detailEmpty.hidden = true;
+        detailContent.hidden = false;
+        document.getElementById("vessel-title").textContent = vessel.metadata?.source_id || "Source ID unavailable";
+        vesselImage.alt = `Image for ${vessel.name || vessel.id}`;
+        imageFallback.hidden = true;
+        vesselImage.hidden = false;
+        element("retry-image").hidden = true;
+        element("refresh-images").hidden = true;
+        vesselImage.onload = () => {
+          if (selectedVessel?.id !== vessel.id) return;
+          imageFallback.hidden = true;
+          vesselImage.hidden = false;
+        };
+        vesselImage.onerror = () => {
+          if (selectedVessel?.id !== vessel.id) return;
+          vesselImage.hidden = true;
+          imageFallback.hidden = false;
+          imageFallback.textContent = "Image unavailable. Retry, or refresh image links if the URL has expired.";
+          element("retry-image").hidden = false;
+          element("refresh-images").hidden = !api;
+        };
+        vesselImage.src = vessel.image_url || vessel.image_path;
+        showReview(vessel);
+        detailTable.replaceChildren();
+        appendDetail("Thời gian", vessel.captured_at);
+        appendDetail("Latitude", hasLocation(vessel) ? vessel.latitude.toFixed(6) : "Unavailable");
+        appendDetail("Longitude", hasLocation(vessel) ? vessel.longitude.toFixed(6) : "Unavailable");
+        for (const [label, key] of [["Width", "width_m"], ["Length", "length_m"]]) {
+          const value = vessel.metadata?.[key];
+          appendDetail(label, typeof value === "number" && Number.isFinite(value) && value > 0 ? `${value.toFixed(2)} m` : "Unavailable");
+        }
+      }
+
+      function selectVessel(vessel, marker, fromMap = false) {
+        if (fromMap) {
+          if (!queueRecords.some((record) => record.id === vessel.id)) return;
+          switchTab("results");
+        }
+        if (inspectionDialog.open) inspectionDialog.close();
+        clearInspection();
+        if (selectedMarker) setMarkerStyle(selectedMarker, false);
+        selectedId = vessel.id;
+        selectedMarker = marker || markers.get(vessel.id) || null;
+        if (selectedMarker) setMarkerStyle(selectedMarker, true);
+        showDetails(vessel);
+        for (const button of vesselList.querySelectorAll(".vessel-row")) {
+          button.setAttribute("aria-current", button.dataset.vesselId === selectedId ? "true" : "false");
+          if (fromMap && button.dataset.vesselId === selectedId) button.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      }
+
+      function rowFor(vessel, index) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "vessel-row";
+        button.dataset.vesselId = vessel.id;
+        button.setAttribute("aria-current", vessel.id === selectedId ? "true" : "false");
+        const number = document.createElement("span");
+        number.className = "row-mark";
+        number.textContent = String(index + 1).padStart(2, "0");
+        const text = document.createElement("span");
+        const name = document.createElement("span");
+        name.className = "row-name";
+        name.textContent = vessel.name || vessel.id;
+        const date = document.createElement("span");
+        date.className = "row-date";
+        date.textContent = prettyDate(datePart(vessel.captured_at));
+        if (!hasLocation(vessel)) date.textContent += " · Location unavailable";
+        text.append(name, date);
+        const status = document.createElement("span");
+        status.className = "row-score";
+        const prediction = Results.prediction(vessel);
+        status.textContent = prediction.score === null ? "No prediction" : `Carrier score ${(prediction.score * 100).toFixed(1)}%${prediction.simulated ? " · Simulated" : ""}`;
+        text.append(status);
+        const reviewStatus = document.createElement("span");
+        reviewStatus.className = "row-review";
+        reviewStatus.textContent = reviewStore.records.has(vessel.id) ? `Reviewed: ${reviewStore.records.get(vessel.id).label}` : "Unreviewed";
+        text.append(reviewStatus);
+        const arrow = document.createElement("span");
+        arrow.className = "row-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.textContent = "›";
+        button.append(number, text, arrow);
+        button.addEventListener("click", () => {
+          const marker = markers.get(vessel.id);
+          if (marker) {
+            const zoom = Math.max(map.getZoom(), 7);
+            map.setView(marker.getLatLng(), zoom, { animate: true });
+          }
+          selectVessel(vessel, marker);
+        });
+        return button;
+      }
+
+      function updateSummary(start, end) {
+        const startLabel = start ? prettyDate(start) : "Any date";
+        const endLabel = end ? prettyDate(end) : "Any date";
+        const summaryTitle = document.createElement("strong");
+        summaryTitle.textContent = "Current search";
+        const summaryRange = document.createElement("span");
+        summaryRange.textContent = `${startLabel} → ${endLabel}`;
+        resultsRange.replaceChildren(summaryTitle, summaryRange);
+      }
+
+      function clearResults(message, clearSelection = true) {
+        markerLayer.clearLayers();
+        markers.clear();
+        selectedMarker = null;
+        vesselList.replaceChildren();
+        countElement.textContent = "0";
+        tabResultCount.textContent = "0";
+        if (message) {
+          const empty = document.createElement("div");
+          empty.className = "list-empty";
+          empty.setAttribute("role", "status");
+          empty.textContent = message;
+          vesselList.append(empty);
+        }
+        if (clearSelection) selectedId = null;
+        showEmptyDetails();
+        updateQueueStatus();
+      }
+
+      function render(filtered, fitMap) {
+        clearResults(null, false);
+        countElement.textContent = String(filtered.length);
+        tabResultCount.textContent = String(filtered.length);
+        if (!filtered.length) {
+          const empty = document.createElement("div");
+          empty.className = "list-empty";
+          empty.textContent = searchRecords.length ? "No detections match these filters." : "No vessel records were captured in this date range.";
+          vesselList.append(empty);
+          selectedId = null;
+          showEmptyDetails();
+          updateQueueStatus();
+          return;
+        }
+
+        const visibleIds = new Set(filtered.map((vessel) => vessel.id));
+        if (selectedId && !visibleIds.has(selectedId)) {
+          selectedId = null;
+          showEmptyDetails();
+        }
+
+        const bounds = [];
+        const rows = document.createDocumentFragment();
+        filtered.forEach((vessel, index) => rows.append(rowFor(vessel, index)));
+        vesselList.append(rows);
+        filtered.forEach((vessel, index) => {
+          if (!hasLocation(vessel)) return;
+          const marker = L.marker([vessel.latitude, vessel.longitude], {
+            icon: shipIcon(vessel, vessel.id === selectedId, index + 1),
+            keyboard: true,
+            riseOnHover: true,
+            title: String(vessel.name || vessel.id)
+          }).addTo(markerLayer);
+          marker.getElement()?.setAttribute("aria-label", String(vessel.name || vessel.id));
+          setMarkerStyle(marker, vessel.id === selectedId);
+          const tooltip = document.createElement("span");
+          tooltip.textContent = vessel.name || vessel.id;
+          marker.bindTooltip(tooltip, { direction: "top", offset: [0, -6] });
+          marker.on("click", () => selectVessel(vessel, marker, true));
+          markers.set(vessel.id, marker);
+          bounds.push([vessel.latitude, vessel.longitude]);
+        });
+
+        if (selectedId) {
+          selectedMarker = markers.get(selectedId) || null;
+          const selectedVessel = filtered.find((vessel) => vessel.id === selectedId);
+          if (selectedVessel) showDetails(selectedVessel);
+          else selectedId = null;
+        }
+
+        if (fitMap && bounds.length) {
+          map.fitBounds(bounds, { padding: [65, 55], maxZoom: 7 });
+        }
+        updateQueueStatus();
+      }
+
+      function threshold() { return Number(scoreThreshold.value || 50) / 100; }
+
+      function updateQueueStatus() {
+        element("threshold-value").textContent = `${Math.round(threshold() * 100)}%`;
+        const reviewed = searchRecords.filter((record) => reviewStore.records.has(record.id)).length;
+        element("review-summary").textContent = `${reviewed} of ${searchRecords.length} reviewed in this search`;
+        element("export-reviews").disabled = reviewed === 0;
+      }
+
+      function refreshQueue(fitMap = false) {
+        queueRecords = Review.queue(searchRecords, reviewStore.records, queueFilter.value, threshold(), queueSort.value);
+        render(queueRecords, fitMap);
+      }
+
+      function showReview(vessel) {
+        const saved = reviewStore.records.get(vessel.id);
+        element("review-label").value = saved?.label || "";
+        element("reviewer").value = saved?.reviewer || "";
+        element("review-notes").value = saved?.notes || "";
+        element("review-status").textContent = saved ? `Reviewed ${displayTime(saved.updated_at)}. You can update this review.` : "Not reviewed yet.";
+        if (!reviewStore.persistent) element("review-status").textContent += " Browser storage is unavailable; reviews last for this session only. Export CSV to keep them.";
+      }
+
+      element("review-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!selectedVessel) return;
+        if (!Review.labels.includes(element("review-label").value)) {
+          element("review-status").textContent = "Choose a review label before saving.";
+          return;
+        }
+        const persisted = reviewStore.save({ id: selectedVessel.id, label: element("review-label").value,
+          reviewer: element("reviewer").value, notes: element("review-notes").value });
+        refreshQueue();
+        if (selectedVessel) element("review-status").textContent = persisted ? "Review saved in this browser." : "Review saved for this session only. Export CSV to keep it.";
+      });
+
+      element("export-reviews").addEventListener("click", () => {
+        const url = URL.createObjectURL(new Blob(["\uFEFF", Review.csv(searchRecords, reviewStore.records, threshold())], { type: "text/csv;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "vessel-reviews.csv";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      for (const input of [queueFilter, queueSort, scoreThreshold]) {
+        input.addEventListener(input === scoreThreshold ? "input" : "change", () => {
+          if (hasSearched) refreshQueue(true);
+          else updateQueueStatus();
+        });
+      }
+
+      function clearInspection() {
+        inspectionVersion++;
+        inspectionImage.removeAttribute("src");
+        element("inspection-obb").removeAttribute("points");
+      }
+      function inspectionScale(percent) {
+        const width = inspectionImage.naturalWidth || 800;
+        element("inspection-stage").style.width = `${width * percent / 100}px`;
+        element("inspection-zoom").value = String(Math.round(percent));
+        element("zoom-value").textContent = `${Math.round(percent)}%`;
+      }
+      function fitInspection() {
+        const width = inspectionImage.naturalWidth || 800;
+        const height = inspectionImage.naturalHeight || 600;
+        const viewport = element("inspection-viewport");
+        const scale = Math.min((viewport.clientWidth || width) / width,
+          (viewport.clientHeight || height) / height) * 100;
+        inspectionScale(Math.min(800, Math.max(25, scale)));
+      }
+      function loadInspection(kind) {
+        if (!selectedVessel) return;
+        inspectionKind = kind;
+        clearInspection();
+        const version = inspectionVersion;
+        const vessel = selectedVessel;
+        const url = kind === "context" ? vessel.context_image_url || vessel.context_image_path : vessel.image_url || vessel.image_path;
+        element("view-context").disabled = !(vessel.context_image_url || vessel.context_image_path);
+        element("view-crop").setAttribute("aria-pressed", String(kind === "crop"));
+        element("view-context").setAttribute("aria-pressed", String(kind === "context"));
+        const polygon = Results.polygon(kind === "context" ? vessel.context_obb : vessel.obb);
+        if (polygon) element("inspection-obb").setAttribute("points", polygon.map(([x, y]) => `${x * 100},${y * 100}`).join(" "));
+        element("show-obb").disabled = !polygon;
+        element("inspection-overlay").hidden = !polygon || !element("show-obb").checked;
+        element("inspection-status").textContent = "Loading image…";
+        inspectionImage.onload = () => {
+          if (version !== inspectionVersion) return;
+          fitInspection();
+          element("inspection-status").textContent = `${inspectionImage.naturalWidth} × ${inspectionImage.naturalHeight} pixels. ${polygon ? "Bounding box available." : "No bounding box supplied."} ${!vessel.context_image_url && !vessel.context_image_path ? "Scene context unavailable." : ""}`;
+        };
+        inspectionImage.onerror = () => {
+          if (version !== inspectionVersion) return;
+          element("inspection-status").textContent = "Image unavailable. Close inspection and retry or refresh image links.";
+        };
+        if (url) inspectionImage.src = url;
+        else element("inspection-status").textContent = "Scene context unavailable.";
+      }
+      element("inspect-image").addEventListener("click", () => {
+        if (!selectedVessel) return;
+        element("inspection-title").textContent = `Inspect ${selectedVessel.name || selectedVessel.id}`;
+        inspectionDialog.showModal();
+        loadInspection("crop");
+      });
+      element("close-inspection").addEventListener("click", () => inspectionDialog.close());
+      inspectionDialog.addEventListener("close", clearInspection);
+      element("view-crop").addEventListener("click", () => loadInspection("crop"));
+      element("view-context").addEventListener("click", () => loadInspection("context"));
+      element("inspection-zoom").addEventListener("input", () => inspectionScale(Number(element("inspection-zoom").value)));
+      element("original-size").addEventListener("click", () => inspectionScale(100));
+      element("fit-image").addEventListener("click", fitInspection);
+      element("show-obb").addEventListener("change", () => {
+        element("inspection-overlay").hidden = !element("show-obb").checked || !Results.polygon(
+          inspectionKind === "context" ? selectedVessel?.context_obb : selectedVessel?.obb);
+      });
+      element("retry-image").addEventListener("click", () => { if (selectedVessel) showDetails(selectedVessel); });
+      element("refresh-images").addEventListener("click", () => search());
+
+      async function search(showResults = true) {
+        const version = ++searchVersion;
+        searchController?.abort();
+        const start = startInput.value;
+        const end = endInput.value;
+        searchStatus.hidden = true;
+        element("classifier-status").hidden = true;
+        let timeout;
+        let timedOut = false;
+        try {
+          const lower = utcDay(start);
+          const upper = utcDay(end);
+          if (upper < lower) throw new Error("Choose an end date on or after the start date.");
+          if (showResults) switchTab("results", true);
+          upper.setUTCDate(upper.getUTCDate() + 1); // Exclusive midnight after To.
+          updateSummary(start, end);
+          hasSearched = true;
+          searchRecords = [];
+          queueRecords = [];
+          element("detail-empty-title").textContent = "Select a detection";
+          element("detail-empty-copy").textContent = "Select a map marker or a result to inspect its image.";
+          if (!api) {
+            searchRecords = dataset.vessels.filter((vessel) => {
+              const time = new Date(vessel.captured_at);
+              return time >= lower && time < upper;
+            });
+            refreshQueue(true);
+            return;
+          }
+          if (window.location.protocol === "file:") {
+            throw new Error("Start the demo server and open its localhost address to search.");
+          }
+          const url = httpUrl(api.getAllUrl);
+          url.searchParams.set(api.startParam, timestampBoundary(lower));
+          url.searchParams.set(api.endParam, timestampBoundary(upper));
+          if (api.pageSize) url.searchParams.set("limit", String(api.pageSize));
+          const controller = new AbortController();
+          searchController = controller;
+          clearResults("Searching observations…", false);
+          element("load-progress").hidden = false;
+          element("load-progress").textContent = "Fetching observation metadata…";
+          resultsPanel.setAttribute("aria-busy", "true");
+          applyQueryButton.textContent = "Searching…";
+          timeout = window.setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, 20000);
+          const records = [];
+          const seenUrls = new Set();
+          const seenIds = new Set();
+          let nextUrl = url;
+          while (nextUrl) {
+            if (seenUrls.has(nextUrl.href) || seenUrls.size >= 1000) throw new Error("Invalid API pagination. Try a smaller date range.");
+            seenUrls.add(nextUrl.href);
+            const response = await fetch(nextUrl.href, {
+              signal: controller.signal, headers: { Accept: "application/json" }
+            });
+            if (version !== searchVersion) return;
+            if (!response.ok) throw new Error(`Search failed (HTTP ${response.status}). Please try again.`);
+            const payload = await response.json();
+            if (version !== searchVersion) return;
+            for (const record of normalizeRecords(payload, nextUrl.href)) {
+              if (seenIds.has(record.id)) throw new Error("The API returned duplicate observation IDs across pages.");
+              seenIds.add(record.id);
+              records.push(record);
+            }
+            if (records.length > 50000) throw new Error("More than 50,000 detections. Choose a smaller date range.");
+            const total = Number.isSafeInteger(payload?.total) && payload.total >= records.length ? ` of ${payload.total}` : "";
+            element("load-progress").textContent = `Loaded ${records.length}${total} detections · ${seenUrls.size} metadata pages. Images load when selected.`;
+            const next = payload?.next_url;
+            nextUrl = next ? httpUrl(next, nextUrl.href) : null;
+            if (nextUrl && nextUrl.origin !== url.origin) throw new Error("Pagination URL must stay on the metadata service.");
+          }
+          searchRecords = records.filter((record) => {
+            const time = new Date(record.captured_at);
+            return time >= lower && time < upper;
+          });
+          window.clearTimeout(timeout);
+          const useBackend = element("prediction-source").value === "backend";
+          const status = element("classifier-status");
+          if (useBackend) {
+            for (const record of searchRecords) {
+              record.prediction = undefined;
+              delete record.metadata.prediction;
+              record.classification_error = "Live classification has not completed for this image.";
+            }
+          }
+          refreshQueue(true);
+          if (useBackend && api.classifierBaseUrl && searchRecords.length) {
+            applyQueryButton.textContent = "Classifying...";
+            element("load-progress").textContent = "Connecting to classifier...";
+            try {
+              const result = await Classifier.classify(searchRecords, api.classifierBaseUrl, {
+                signal: controller.signal,
+                onProgress: (done, total) => {
+                  if (version === searchVersion) element("load-progress").textContent =
+                    `Classifying crops: ${done} of ${total} complete.`;
+                },
+              });
+              if (version !== searchVersion) return;
+              status.hidden = result.failed === 0;
+              status.textContent = result.failed ?
+                `Classification incomplete: ${result.failed} of ${searchRecords.length} crops failed. Detections remain available in Results.` : "";
+            } catch (error) {
+              if (version !== searchVersion || controller.signal.aborted) return;
+              status.hidden = false;
+              status.textContent = `Classification incomplete: ${error.message} Detections remain available in Results.`;
+            }
+          } else if (useBackend) {
+            status.textContent = api.classifierBaseUrl ? "No images in the selected range." :
+              "Live backend is not configured. Choose Saved run results or configure the classifier URL.";
+            status.hidden = false;
+          } else {
+            status.textContent = "";
+            status.hidden = true;
+          }
+          if (version !== searchVersion) return;
+          refreshQueue(true);
+        } catch (error) {
+          if (version !== searchVersion) return;
+          const message = timedOut ? "Search timed out. Please try again." :
+            error.name === "TypeError" ? "Could not reach the image service. Please try again." :
+            error.name === "SyntaxError" ? "The API returned invalid JSON. Please try again." : error.message;
+          clearResults(message);
+          searchRecords = [];
+          queueRecords = [];
+          updateQueueStatus();
+          searchStatus.textContent = message;
+          searchStatus.hidden = false;
+        } finally {
+          window.clearTimeout(timeout);
+          if (version === searchVersion) {
+            element("load-progress").hidden = true;
+            resultsPanel.setAttribute("aria-busy", "false");
+            applyQueryButton.textContent = "Show results";
+          }
+        }
+      }
+
+      const latest = dataset.initial_date ||
+        dataset.vessels.map((vessel) => datePart(vessel.captured_at)).sort().at(-1);
+      startInput.value = dataset.default_date_range?.from || latest;
+      endInput.value = dataset.default_date_range?.to || latest;
+      element("dataset-context").textContent = dataset.dataset_label || "";
+      element("dataset-context").hidden = !dataset.dataset_label;
+      for (const [calendar, displayId] of [
+        [startInput, "date-start-display"], [endInput, "date-end-display"]
+      ]) {
+        const display = document.getElementById(displayId);
+        const syncDisplay = () => {
+          display.value = calendar.value ? prettyDate(calendar.value) : "";
+          display.removeAttribute("aria-invalid");
+        };
+        calendar.addEventListener("input", syncDisplay);
+        calendar.addEventListener("change", syncDisplay);
+        display.addEventListener("input", () => {
+          const value = display.value;
+          const digits = /^\d{8}$/.test(value) || /^\d{2}\/\d{2}\/\d{4}$/.test(value) ?
+            value.replaceAll("/", "") : "";
+          const iso = digits ?
+            `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}` : "";
+          try {
+            utcDay(iso);
+            calendar.value = iso;
+            display.value = prettyDate(iso);
+            display.removeAttribute("aria-invalid");
+          } catch {
+            calendar.value = "";
+            display.setAttribute("aria-invalid", String(Boolean(value)));
+          }
+        });
+        display.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") applyQueryButton.click();
+        });
+        syncDisplay();
+      }
+      applyQueryButton.addEventListener("click", () => search());
+      element("prediction-source").addEventListener("change", () => { if (hasSearched) return search(); });
+      for (const input of [startInput, endInput]) {
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") applyQueryButton.click();
+        });
+      }
+      switchTab("query");
+      window.addEventListener("resize", () => map.invalidateSize());
+      window.setTimeout(() => map.invalidateSize(), 80);
+      updateQueueStatus();
+      clearResults();
+      search();
+    })();
+  </script>
+</body>
+</html>

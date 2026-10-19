@@ -1,0 +1,101 @@
+{
+  "license": "Source-specific; see each source entry",
+  "provider_terms": "https://www.marineregions.org/disclaimer.php",
+  "sources": [
+    {
+      "zone": "internal_waters",
+      "provider": "Government of Viet Nam / UN DOALOS deposit",
+      "dataset_date": "2025-02-21",
+      "request_url": "https://www.un.org/depts/los/LEGISLATIONANDTREATIES/PDFFILES/DEPOSIT/Vietnam_Statement_Territorial_Baseline_Gulf_Bo.pdf",
+      "source_sha256": "7fad57c7b718a65e8a4fc9f422e18981e8c05652bc6db7b98893d8c82aa71e91",
+      "source_bytes": 283247,
+      "verified_on": "2026-10-13",
+      "geometry_sha256": "6fb10d02ae7d2bfc258b0adc927c48064e68f72d47bfa3e6b0a5cc5030df3a7f",
+      "point_ids": [
+        "A11",
+        "A12",
+        "A13",
+        "A14",
+        "A15",
+        "A16",
+        "A17",
+        "A18",
+        "A19",
+        "A20",
+        "A21",
+        "A22",
+        "A23",
+        "A24"
+      ],
+      "license_note": "Factual coordinates transcribed from the public government statement; not attributed the Marine Regions license."
+    },
+    {
+      "zone": "territorial_sea",
+      "provider": "Government of Viet Nam / UN DOALOS deposit",
+      "dataset_date": "2025-02-21",
+      "request_url": "https://www.un.org/depts/los/LEGISLATIONANDTREATIES/PDFFILES/DEPOSIT/Vietnam_Statement_Territorial_Baseline_Gulf_Bo.pdf",
+      "source_sha256": "7fad57c7b718a65e8a4fc9f422e18981e8c05652bc6db7b98893d8c82aa71e91",
+      "source_bytes": 283247,
+      "verified_on": "2026-10-13",
+      "geometry_sha256": "f63604f54548a843dbea3c0129989913e869f610311424b4f2d2ad4e189eef2e",
+      "point_ids": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ],
+      "license_note": "Factual coordinates transcribed from the public government statement; not attributed the Marine Regions license."
+    },
+    {
+      "zone": "internal_waters",
+      "mrgid": 49548,
+      "provider": "Flanders Marine Institute / Marine Regions",
+      "dataset_version": 4,
+      "dataset_date": "2023-10-25",
+      "doi": "https://doi.org/10.14284/631",
+      "request_url": "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions%3Aeez_internal_waters&cql_filter=mrgid%3D49548&outputFormat=application%2Fjson&srsName=EPSG%3A4326",
+      "downloaded_at": "2026-10-13T02:45:35.183417+00:00",
+      "source_sha256": "d2bce52a85544f44c33dd66da5cdc14fcbe0ca3623f4375dad90719b23188102",
+      "source_bytes": 483792,
+      "geometry_sha256": "cdb8982b095c579e942e9e79ae9a7978e2aa651a20b8d0e075d4c3fa68bbbb88",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    {
+      "zone": "territorial_sea",
+      "mrgid": 49198,
+      "provider": "Flanders Marine Institute / Marine Regions",
+      "dataset_version": 4,
+      "dataset_date": "2023-10-25",
+      "doi": "https://doi.org/10.14284/633",
+      "request_url": "https://geo.vliz.be/geoserver/MarineRegions/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=MarineRegions%3Aeez_12nm&cql_filter=mrgid%3D49198&outputFormat=application%2Fjson&srsName=EPSG%3A4326",
+      "downloaded_at": "2026-10-13T02:45:35.255178+00:00",
+      "source_sha256": "0751e3b0dec0945515a8eed9dab6f67c9271b7adfbd1617e63165af7e1d9acfe",
+      "source_bytes": 538862,
+      "geometry_sha256": "b35d93233869ba338e3cb8547643173a898726c1f748eba7871bf43019e92318",
+      "license": "CC BY 4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+  ],
+  "asset_sha256": "9a4945415466ec6643015cae1aa28a70225d957d001b665276158cb1d7307c84",
+  "transformation": "Official DMS coordinates converted to decimal degrees and joined in published order. Marine Regions source geometries unchanged, optional older reference.",
+  "coverage_note": "Article 1 mainland straight baseline A11-A24; Article 3 outer-limit segment 1-10 adjacent to the Bac Luan River mouth. Article 2 Bach Long Vi low-water baseline has no coordinate table and is not derived here. These lines are not complete nationwide maritime polygons.",
+  "checked_on": "2026-10-13",
+  "coordinates_sha256": "78c8785fde31b564117e3d33d32924a5df4ba77aed3d5b209d5d8a75f0318d25",
+  "official_chart": {
+    "url": "https://www.un.org/depts/los/LEGISLATIONANDTREATIES/PDFFILES/DEPOSIT/Chart_Vietnam_Baseline_Gulf_Bac_Bo.pdf",
+    "sha256": "9d9cce5072dc5573c69b75934deb8ab43bcb79b2127915024b25f281106c7ec9",
+    "bytes": 5838570
+  },
+  "latest_dataset_check": "Marine Regions still lists Internal Waters and Territorial Seas v4 (2023); the UN Vietnam country file lists the 2025 Gulf of Tonkin deposit.",
+  "sources_checked": [
+    "https://www.un.org/Depts/los/LEGISLATIONANDTREATIES/STATEFILES/VNM.htm",
+    "https://www.marineregions.org/sources.php"
+  ]
+}

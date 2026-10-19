@@ -346,12 +346,65 @@ Tham khảo: [LangGraph quickstart](https://docs.langchain.com/oss/python/langgr
 
 ## Báo cáo HTML trong Open WebUI Artifacts
 
+### Bản đồ Leaflet nhúng trong demo
+
+Chế độ `langgraph.demo.json` có thêm tool `create_vessel_map` nhận
+`observed_from`, `observed_to` và các bộ lọc ID tàu, phân loại, dài/rộng như
+`search_ships`. Tool gọi `POST /maps` trên server demo cổng **8002** và trả URL,
+số lượt quan sát, bộ lọc và mã snapshot. Agent ghép một HTML Artifacts nhỏ chứa
+iframe và link mở toàn màn hình vào câu trả lời. Giữ nguyên kết nối Open WebUI;
+không cần thêm/sửa Pipe, Function hoặc Filter.
+
+Server phục vụ bản đồ tại `GET /maps/<map_id>`, dùng lại giao diện Leaflet từ
+ShipClassification đã được đóng gói trong `ship_agent/map_assets/`. Không cần
+upload repo ShipClassification hoặc chạy thêm dịch vụ/port. Bản đồ mở sẵn kết
+quả đúng bộ lọc, dùng ID nguồn và dự đoán đã lưu, không chạy inference mới.
+
+Mỗi map đóng băng dữ liệu và ảnh gốc đã kiểm tra trong `data/demo/maps/`
+(được Git bỏ qua). Giữ thư mục này khi deploy để link trong lịch sử chat còn
+hoạt động sau restart hoặc thay dữ liệu nguồn. Đây là lượt quan sát, không phải
+số tàu duy nhất; hai quan sát có thể trùng tọa độ và chọn riêng trong danh sách.
+Map và ảnh không cần gọi API từ iframe; nền OpenStreetMap vẫn cần internet.
+
+- `VESSELWATCH_DEMO_PUBLIC_URL`: URL trình duyệt truy cập, mặc định
+  `http://127.0.0.1:8002` qua port forwarding.
+- `VESSELWATCH_DEMO_API_URL`: URL agent gọi server để tạo map, mặc định
+  `http://127.0.0.1:8002`. Nếu agent chạy trong container thì dùng địa chỉ server
+  mà container truy cập được. URL này không được đưa vào iframe.
+- `VESSELWATCH_DEMO_MAP_DIR`: tùy chọn nơi lưu map; đặt ở server demo, nơi có
+  quyền ghi và được giữ lại qua các lần deploy. Server demo không tự đọc `.env`.
+
+Sau khi cập nhật code, restart server demo và LangGraph, giữ forward **8002**.
+Thử: **“Hiển thị các quan sát được dự đoán là tàu sân bay từ 24/12/2025 đến
+30/12/2025 trên bản đồ tương tác.”** Tool trả 2 quan sát trong snapshot demo.
+Mở URL map độc lập trước, sau đó mở iframe trong Artifacts. Nếu độc lập mở được
+nhưng iframe trắng, kiểm tra cấu hình iframe/CSP thực tế của Open WebUI cho phép
+trang map và script của nó; dùng link mở toàn màn hình để đối chiếu.
+
+HTML Leaflet, ảnh base64 và dữ liệu marker chỉ đi từ server tới trình duyệt.
+Tool trả tóm tắt nhỏ; lịch sử hội thoại chỉ thêm iframe wrapper nhỏ và URL.
+Trước mỗi lần gọi LLM, agent lọc bản sao assistant messages: thay HTML artifact
+bằng tóm tắt giới hạn độ dài, giữ URL/ID ảnh và bỏ ảnh base64 trong phần text.
+Message gốc vẫn giữ nguyên trong lịch sử để Open WebUI mở lại artifact đầy đủ.
+Nội dung người dùng, kết quả tool có cấu trúc, tool call và ID message được giữ nguyên.
+Lớp lọc này áp dụng cho cả báo cáo HTML có ảnh và map iframe; không cần cài Filter
+trong Open WebUI. Các kiểm thử HTTPX kiểm tra cả câu hỏi tiếp theo và vòng gọi tool;
+chưa đo input tokens thực tế trên Open WebUI remote.
+
+### Báo cáo và ảnh chart
+
 Để quay clip với ảnh vệ tinh và số liệu cố định từ ShipClassification, xem
 [kịch bản demo 4 phút](DEMO_AGENT_4_PHUT.md). Chạy `langgraph.demo.json` để chọn
 bộ demo riêng; `langgraph.json` tiếp tục dùng nguồn dữ liệu thật như trước.
 
 Tool `daily_carrier_report(observed_from, observed_to)` lấy số liệu báo cáo từ file server.
-Agent dựng HTML trực tiếp từ kết quả tool, rồi ghép vào câu trả lời cuối trong một
+Tham số tùy chọn `output_format="png"` xuất ảnh chart riêng trực tiếp trong chat;
+`output_format="html"` là mặc định để tạo báo cáo Artifacts. Cả hai dùng cùng tool
+và hàm vẽ PNG hiện có. PNG hỗ trợ nguồn `file_server` và `demo`; mock hỗ trợ HTML.
+Trong demo, server cổng 8002 phục vụ `/charts/daily-carriers.png`; trình duyệt cần
+truy cập được URL này giống ảnh tàu. URL được kiểm tra theo báo cáo và snapshot.
+
+Với định dạng HTML, agent dựng HTML trực tiếp từ kết quả tool, rồi ghép vào câu trả lời cuối trong một
 code block `html` hoàn chỉnh, sau phần nhận xét của model. Không yêu cầu model
 chép lại HTML hay tự tạo biểu đồ. Chỉ đính kèm báo cáo thành công của lượt hỏi hiện tại.
 

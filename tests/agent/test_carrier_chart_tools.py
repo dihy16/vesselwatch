@@ -67,24 +67,29 @@ def test_client_rejects_inconsistent_report_data(change):
         load_daily_carrier_report(FIRST, LAST, transport=httpx.MockTransport(respond))
 
 
-def test_tool_returns_server_authoritative_report_and_handles_failures(monkeypatch):
+@pytest.mark.parametrize("output_format", ["html", "png"])
+def test_tool_returns_server_authoritative_report_and_handles_failures(monkeypatch, output_format):
     def fetch(first, last):
         assert first == FIRST and last == LAST
         return report_data()
 
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", fetch)
     tool = tools_module.create_tools(date(2026, 10, 14), observations=[])[2]
-    result = tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
+    arguments = {"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat(),
+                 "output_format": output_format}
+    result = tool.invoke(arguments)
     # Deliberately empty initial agent snapshot: report/PNG use server data together.
     assert result["total_detections"] == 1
     assert result["reference_date"] == "2026-10-14"
+    assert result["output_format"] == output_format
+    assert result["chart_url"] == report_data()["chart_url"]
 
     def fail(*args):
         raise FileServerError("Không kết nối được file server.")
 
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", fail)
     with pytest.raises(ToolException, match="file server"):
-        tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
+        tool.invoke(arguments)
 
 
 def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
@@ -96,6 +101,9 @@ def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
     assert report["total_detections"] == sum(
         s["possible_aircraft_carrier_count"] for s in report["daily_stats"]
     )
+    with pytest.raises(ToolException, match="mock"):
+        tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat(),
+                     "output_format": "png"})
 
 
 @pytest.mark.parametrize("stream", [False, True])
@@ -163,13 +171,14 @@ def test_graph_report_round_trip_returns_html_artifact(monkeypatch, stream):
 
 
 @pytest.mark.parametrize("failure", [False, True])
-def test_graph_never_reuses_previous_turn_artifact_after_followup_or_error(failure):
+@pytest.mark.parametrize("output_format", ["html", "png"])
+def test_graph_never_reuses_previous_turn_artifact_after_followup_or_error(failure, output_format):
     history = [
         HumanMessage(content="Báo cáo trước."),
         AIMessage(content="", tool_calls=[{
             "id": "old_report", "name": "daily_carrier_report", "args": {},
         }]),
-        ToolMessage(content=json.dumps(report_data()), name="daily_carrier_report",
+        ToolMessage(content=json.dumps({**report_data(), "output_format": output_format}), name="daily_carrier_report",
                     tool_call_id="old_report"),
         AIMessage(content="Báo cáo cũ.\n```html\n<html></html>\n```"),
         HumanMessage(content="Câu hỏi mới."),

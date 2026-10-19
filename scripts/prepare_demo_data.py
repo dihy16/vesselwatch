@@ -85,6 +85,7 @@ def write_snapshot(source_repo: Path, output: Path) -> dict:
             break
 
     prepared = []
+    ship_ids = set()
     for index, row in enumerate(selected, 1):
         path = (image_root / row["image_path"]).resolve()
         if not path.is_relative_to(image_root) or path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
@@ -93,7 +94,13 @@ def write_snapshot(source_repo: Path, output: Path) -> dict:
         digest = hashlib.sha256(raw).hexdigest()
         if digest != row["metadata"]["crop_sha256"]:
             raise ValueError(f"Crop differs from the saved model input: {path}")
-        ship_id = f"DEMO_{index:03d}"
+        ship_id = row["metadata"].get("source_id")
+        if not isinstance(ship_id, str) or not ship_id.strip():
+            raise ValueError(f"Missing source ship ID for observation: {row['id']}")
+        if ship_id in ship_ids:
+            raise ValueError(f"Duplicate source ship ID: {ship_id}")
+        ship_ids.add(ship_id)
+        image_id = f"DEMO_{index:03d}"
         prepared.append((raw, {
             "observation_id": row["id"], "ship_id": ship_id,
             "observed_date": row["captured_at"][:10], "observed_at": row["captured_at"],
@@ -102,7 +109,7 @@ def write_snapshot(source_repo: Path, output: Path) -> dict:
             "classification": ("aircraft_carrier" if row["prediction"]["carrier_score"] >= threshold
                                else "not_aircraft_carrier"),
             "confidence": row["prediction"]["carrier_score"],
-            "image_id": ship_id, "image_file": ship_id + path.suffix.lower(),
+            "image_id": image_id, "image_file": image_id + path.suffix.lower(),
             "image_sha256": digest, "ground_truth_label": row["metadata"]["ground_truth_label"],
             "source_name": row["name"], "source_id": row["metadata"].get("source_id"),
         }))

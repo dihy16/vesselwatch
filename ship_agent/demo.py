@@ -1,11 +1,16 @@
 """Demo graph plus a small local image server, independent of the production API."""
 
-from fastapi import FastAPI, HTTPException
+from datetime import date
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from langchain_core.runnables import RunnableConfig
 
+from file_server.carrier_reports import daily_carrier_report, render_carrier_chart
 from ship_agent.agent import build_agent
 from ship_agent.demo_data import image_path, load_demo_observations, read_snapshot
+from ship_agent.map_artifacts import render_map
+from ship_agent.map_snapshots import CreateMapInput, MapFilters, read_map, save_map
 
 
 def make_graph(config: RunnableConfig):
@@ -23,6 +28,26 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok", "is_demo": True, "snapshot_id": snapshot["snapshot_id"],
                 "observation_count": len(records)}
+
+    @app.post("/maps")
+    def create_map(request: CreateMapInput):
+        if request.expected_snapshot_id != snapshot["snapshot_id"]:
+            raise HTTPException(409, "Demo snapshot changed; restart the demo agent and server.")
+        filters = MapFilters.model_validate(request.model_dump(exclude={"expected_snapshot_id"}))
+        try:
+            return save_map(snapshot, filters)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(409, "Could not freeze the verified demo data; regenerate the snapshot.") from exc
+
+    @app.get("/maps/{map_id}", response_class=HTMLResponse)
+    def vessel_map(map_id: str):
+        try:
+            payload = read_map(map_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(404, "Map not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(409, "Map snapshot was modified; create a new map.") from exc
+        return HTMLResponse(render_map(payload), headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/images/{image_id}")
     def image(image_id: str, original: bool = False):
@@ -49,6 +74,23 @@ def create_app() -> FastAPI:
         if ship_id not in ships:
             raise HTTPException(404, "Demo observation not found.")
         return ships[ship_id]
+
+    @app.get("/charts/daily-carriers.png")
+    def carrier_chart(
+        observed_from: date, observed_to: date,
+        report_id: str = Query(pattern=r"^[a-f0-9]{64}$"),
+        snapshot_id: str = Query(pattern=r"^[a-f0-9]{64}$"),
+    ):
+        if snapshot_id != snapshot["snapshot_id"]:
+            raise HTTPException(409, "Demo snapshot changed; request a new chart.")
+        try:
+            report = daily_carrier_report(observations, observed_from, observed_to)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if report_id != report["report_id"]:
+            raise HTTPException(409, "Report data changed; request a new chart.")
+        return Response(render_carrier_chart(report), media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/report-preview", response_class=HTMLResponse)
     def report_preview():
