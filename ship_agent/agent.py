@@ -77,11 +77,20 @@ def build_agent(
                    "Tools đọc dữ liệu thật từ file server. Mỗi ảnh Telegram là một tàu riêng; "
                    "không suy ra danh tính cùng tàu qua nhiều ảnh.")
     if data_source == "demo":
-        source_note = ("Bộ dữ liệu demo cố định từ ShipClassification: ảnh vệ tinh và kết quả mô hình đã lưu. "
+        source_note = ("Tools cung cấp ảnh vệ tinh, thông tin quan sát và kết quả phân loại. "
                        "ship_id là ID tàu gốc (source_id) trong dữ liệu nguồn; giữ nguyên ID, không đặt bí danh. "
-                       "ID này không xác nhận tên hay danh tính tàu ngoài thực tế. "
-                       "Đây là tập mẫu đã chọn; không đại diện toàn bộ dữ liệu và không chạy inference mới. "
                        "Dùng số liệu tool trả về, không thay đổi ngày, vị trí, kích thước hay điểm dự đoán.")
+    response_note = ("Trả lời trực tiếp kết quả người dùng hỏi, ngắn gọn, ưu tiên bảng hoặc ảnh được yêu cầu. "
+                     "Không tự thêm mục 'Lưu ý', 'Ghi chú', cảnh báo hoặc đoạn giải thích cuối câu trả lời. "
+                     "Trong các câu trả lời truy vấn thông thường, không nhắc đến demo, tập demo, bộ dữ liệu demo, "
+                     "tập mẫu đã chọn, dữ liệu cố định, kết quả đã lưu hay việc không chạy inference mới. "
+                     "Các trường is_demo, data_scope, demo_snapshot_id là metadata nội bộ; không đưa chúng vào câu trả lời. "
+                     "Dùng cách gọi 'nghi là tàu sân bay' hoặc 'lượt phát hiện nghi là tàu sân bay' ngay trong kết quả. "
+                     "Không tự giải thích lại ý nghĩa ID tàu, carrier score, làm tròn kích thước hoặc giới hạn dữ liệu. "
+                     "Chỉ giải thích các nội dung này khi người dùng hỏi trực tiếp; khi đó trả lời đúng nguồn và phạm vi thực tế. "
+                     "Không khẳng định đang nhận diện ảnh mới, theo dõi trực tiếp hay xác nhận danh tính tàu. "
+                     "Vẫn báo lỗi truy vấn, thiếu dữ liệu hoặc phân trang khi chúng ảnh hưởng trực tiếp đến yêu cầu."
+                     if data_source == "demo" else "")
     image_note = ("Nói rõ đây là URL ảnh giả lập và bạn chưa phân tích nội dung ảnh."
                   if data_source == "mock" else
                   "Đây là URL ảnh thật do file server phục vụ; bạn chưa tải hay phân tích nội dung ảnh.")
@@ -93,7 +102,6 @@ def build_agent(
                 "Nếu chưa có khoảng ngày từ câu hỏi hoặc ngữ cảnh, hỏi người dùng để xác định khoảng ngày. "
                 "Tool trả URL và tổng lượt quan sát; hệ thống tự đính kèm iframe HTML Artifacts. "
                 "Chỉ viết tóm tắt ngắn, không tải hay tự viết lại HTML/Leaflet của map. "
-                "Bản đồ dùng dự đoán đã lưu, không chạy nhận diện mới."
                 if data_source == "demo" else "")
     prompt = SystemMessage(content=f"""Bạn là trợ lý truy vấn dữ liệu tàu khả nghi, trả lời bằng tiếng Việt.
 Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(data_source)}.
@@ -131,6 +139,7 @@ dùng ship_id làm chú thích ảnh; không tự tạo hay rút gọn ID tàu.
 Kết quả có total lớn hơn số bản ghi trả về thì nói rõ phân trang, không gọi đó là toàn bộ.
 Khi tool báo lỗi tham số, sửa tham số hoặc giải thích yêu cầu cần điều chỉnh.
 Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không suy ra không có tàu.
+{response_note}
 """)
 
     def call_model(state: MessagesState):

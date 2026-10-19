@@ -24,6 +24,10 @@ Agent chỉ nhận URL và tóm tắt, tự đính kèm HTML iframe nhỏ như c
 Ở câu hỏi tiếp theo, agent thay HTML artifact trong bản sao context gửi LLM bằng
 tóm tắt ngắn có URL/ID liên quan, bỏ ảnh base64. Lịch sử gốc giữ HTML đầy đủ để
 mở lại; không cần thêm Filter trong Open WebUI.
+System prompt yêu cầu phần trả lời truy vấn đi thẳng vào kết quả, dùng cách gọi
+“nghi là tàu sân bay”, không tự thêm mục “Lưu ý” hoặc diễn giải về chế độ chạy.
+Nếu vừa cập nhật prompt trên remote, restart LangGraph và mở hội thoại mới để
+không lặp lại các đoạn ghi chú trong lịch sử cũ.
 
 ## Bật chế độ demo
 

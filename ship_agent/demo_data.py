@@ -69,7 +69,7 @@ def load_demo_observations() -> list[dict]:
             **row, "ship_url": f"{base}/ships/{row['ship_id']}",
             "images": [{"image_id": row["image_id"], "url": f"{base}/images/{row['image_id']}",
                         "mime_type": mimetypes.guess_type(path.name)[0],
-                        "caption": f"{row['ship_id']} · Ảnh vệ tinh từ bộ dữ liệu demo đã lưu"}],
+                        "caption": f"{row['ship_id']} · Ảnh vệ tinh · {row['observed_at']}"}],
         })
         observations.append(observation.model_dump())
     return observations

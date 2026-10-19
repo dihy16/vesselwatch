@@ -154,7 +154,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
     source_description = ("Dữ liệu và URL giả lập." if is_mock else
                           "Dữ liệu thật từ file server; mỗi ảnh Telegram là một tàu riêng.")
     if data_source == "demo":
-        source_description = "Bộ demo cố định: ảnh vệ tinh và dự đoán đã lưu, không phải inference mới."
+        source_description = "Truy vấn ảnh vệ tinh và kết quả phân loại theo thời gian quan sát."
     @tool(args_schema=CarrierReportInput)
     def daily_carrier_report(observed_from: str, observed_to: str, output_format: str = "html") -> dict:
         """Tạo báo cáo HTML hoặc ảnh chart PNG lượt dự đoán tàu sân bay theo ngày.
@@ -204,7 +204,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             Dùng khi yêu cầu bản đồ/map, vị trí trên bản đồ; không dùng cho chart theo ngày.
             Khoảng ngày bắt buộc, YYYY-MM-DD gồm hai đầu mốc, tối đa 366 ngày.
             Bộ lọc ID tàu, phân loại và kích thước mét như search_ships; không phân trang.
-            Đóng băng dữ liệu và ảnh demo đã lưu, không chạy inference mới.
+            Lưu dữ liệu và ảnh đúng bộ lọc để có thể mở lại cùng kết quả trên bản đồ.
             Trả URL và số lượt quan sát; hệ thống đính kèm iframe, không đưa HTML map cho LLM.
             """
             filters = MapFilters(

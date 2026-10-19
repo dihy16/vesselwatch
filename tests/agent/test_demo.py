@@ -167,6 +167,7 @@ def test_demo_search_counts_and_report_share_the_same_source(demo_snapshot, monk
     assert [row["ship_id"] for row in found["ships"]] == ["source-ship-1"]
     assert found["ships"][0]["images"][0]["url"] == "http://viewer:8002/images/DEMO_001"
     assert found["ships"][0]["observed_date"] == "2025-12-30"
+    assert "demo" not in found["ships"][0]["images"][0]["caption"].lower()
     args = {"observed_from": "2025-12-24", "observed_to": "2025-12-30"}
     stats, result = count.invoke(args), report.invoke(args)
     assert len(stats["daily_stats"]) == 7
@@ -290,8 +291,14 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
     def respond(request):
         body = json.loads(request.content)
         requests.append(body)
-        assert "Bộ dữ liệu demo cố định" in body["messages"][0]["content"]
-        assert "ngày tham chiếu là 2025-12-30" in body["messages"][0]["content"].lower()
+        prompt = body["messages"][0]["content"]
+        assert "Trả lời trực tiếp kết quả người dùng hỏi" in prompt
+        assert "Không tự thêm mục 'Lưu ý', 'Ghi chú'" in prompt
+        assert "không nhắc đến demo, tập demo, bộ dữ liệu demo" in prompt
+        assert "Chỉ giải thích các nội dung này khi người dùng hỏi trực tiếp" in prompt
+        assert "Không khẳng định đang nhận diện ảnh mới" in prompt
+        assert "Bộ dữ liệu demo cố định từ ShipClassification" not in prompt
+        assert "ngày tham chiếu là 2025-12-30" in prompt.lower()
         if len(requests) == 1:
             message = {"role": "assistant", "content": None, "tool_calls": [{
                 "id": "search", "type": "function", "function": {
@@ -305,7 +312,7 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
                 assert result["ships"][0]["ship_id"] == "source-ship-1"
             else:
                 assert result["output_format"] == "png" and result["total_detections"] == 1
-            message = {"role": "assistant", "content": "Kết quả trong bộ demo."}
+            message = {"role": "assistant", "content": "Kết quả truy vấn."}
             reason = "stop"
         if body.get("stream"):
             delta = dict(message)
