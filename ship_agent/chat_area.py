@@ -57,7 +57,8 @@ def chat_area_note(config):
     return (
         "VÙNG CỦA CUỘC CHAT Ở LƯỢT HIỆN TẠI: " + state + "\n"
         "Khi người dùng hỏi 'vùng này', 'vùng vừa vẽ', 'vùng đang chọn' hoặc tiếp tục "
-        "câu hỏi về vùng đã chọn, gọi query_ships_in_area với use_chat_area=true, "
+        "câu hỏi về vùng đã chọn, gọi tool phù hợp (query_ships_in_area hoặc "
+        "analyze_ship_observations) với use_chat_area=true, "
         "bỏ area_name và area_id. Không lấy mã vùng cũ từ lịch sử. "
         "Chỉ xử lý một vùng mỗi truy vấn; nếu yêu cầu nhiều vùng hãy yêu cầu chọn một. "
         "Nếu hỏi rõ một khu vực khác, dùng area_name theo quy tắc vùng định nghĩa sẵn/tự vẽ. "

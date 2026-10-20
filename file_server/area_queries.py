@@ -16,7 +16,8 @@ from pydantic import BaseModel, ConfigDict
 
 from .spatial import (AREA_NAMES, AreaGeometry, UserPolygon, named_area,
                       predefined_geometry, query_observations)
-from .area_models import AreaQueryInput, AreaRequest
+from .area_models import AreaQueryInput, AreaRequest, ObservationAnalysisRequest
+from .observation_analysis import analysis_filters, analyze_observations
 
 
 class AreaConfirmation(BaseModel):
@@ -142,6 +143,17 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
                     "area_name": area_name, "filters": query.model_dump(),
                     "message": "Vẽ rectangle/polygon trên bản đồ rồi bấm Xác nhận và hỏi agent."}
         return result_for(request, area_id, record, rows)
+
+    @app.post("/observation-analyses")
+    def observation_analysis(body: ObservationAnalysisRequest, request: Request):
+        query = analysis_filters(body)
+        area = query_area(AreaRequest(**query.model_dump(), polygon=body.polygon), request)
+        if area["status"] == "needs_drawing":
+            return {**area, "analysis": body.analysis}
+        rows, _, record = checked_record(request, area["area_id"])
+        result = analyze_observations(rows, body, geometry_for(record))
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **result, "source_snapshot_id": record["snapshot_id"]}
 
     @app.get("/area-queries/{area_id}", response_class=HTMLResponse)
     def area_map(area_id: str, request: Request):

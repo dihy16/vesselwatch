@@ -145,6 +145,9 @@ def query_observations(observations, query, geometry=None):
             continue
         if query.length_gt_m is not None and (row["length_m"] is None or row["length_m"] <= query.length_gt_m):
             continue
+        if query.carrier_score_gt is not None and (row["confidence"] is None
+                                                   or row["confidence"] <= query.carrier_score_gt):
+            continue
         if any((getattr(query, "min_" + field) is not None and (row[field] is None or row[field] < getattr(query, "min_" + field)))
                or (getattr(query, "max_" + field) is not None and (row[field] is None or row[field] > getattr(query, "max_" + field)))
                for field in ("length_m", "width_m")):

@@ -1,5 +1,8 @@
 # Agent truy vấn tàu
 
+Các truy vấn kích thước, score và so sánh khác nhãn (BR 9, 10, 12):
+xem [quy tắc và ví dụ](docs/observation_queries.md).
+
 ## Vùng được chọn theo cuộc chat Open WebUI
 
 Pipe LangGraph hiện tại có thể mở map Artifacts và đọc một polygon đã xác nhận

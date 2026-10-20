@@ -9,17 +9,17 @@
 
 ## Level 2 — Truy vấn không gian và thời gian
 
-- [ ] 5. Trong khoảng thời gian từ ngày A đến ngày B, có những tàu khả nghi nào xuất hiện trong khu vực X?
-- [ ] 6. Những tàu có kích thước lớn hơn 250 m đã được quan sát ở những vị trí nào?
-- [ ] 7. Có bao nhiêu tàu nghi là tàu sân bay được phát hiện trong khu vực X trong tháng vừa qua?
+- [x] 5. Trong khoảng thời gian từ ngày A đến ngày B, có những tàu khả nghi nào xuất hiện trong khu vực X?
+- [x] 6. Những tàu có kích thước lớn hơn 250 m đã được quan sát ở những vị trí nào?
+- [x] 7. Có bao nhiêu tàu nghi là tàu sân bay được phát hiện trong khu vực X trong tháng vừa qua?
 - [ ] 8. Những tàu nào có nhiều lần quan sát vệ tinh tại các thời điểm khác nhau?
 
 ## Level 3 — Kết hợp dữ liệu đa nguồn
 
-- [ ] 9. Tìm các tàu có kích thước phù hợp với tàu sân bay nhưng mô hình nhận dạng kết luận không phải tàu sân bay.
-- [ ] 10. Trong số các tàu có chiều dài trên 250 m, bao nhiêu tàu được nhận dạng là tàu sân bay với độ tin cậy trên 80%?
+- [x] 9. Tìm các tàu có kích thước phù hợp với tàu sân bay nhưng mô hình nhận dạng kết luận không phải tàu sân bay.
+- [x] 10. Trong số các tàu có chiều dài trên 250 m, bao nhiêu tàu được nhận dạng là tàu sân bay với độ tin cậy trên 80%?
 - [ ] 11. Những tàu nào có kết quả nhận dạng khác nhau giữa các ảnh vệ tinh?
-- [ ] 12. Những trường hợp nào có kích thước tương đồng nhưng kết quả phân loại khác nhau?
+- [x] 12. Những trường hợp nào có kích thước tương đồng nhưng kết quả phân loại khác nhau?
 
 ## Level 4 — Phân tích và suy luận
 

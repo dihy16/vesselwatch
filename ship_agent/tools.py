@@ -15,9 +15,9 @@ from file_server.carrier_reports import daily_carrier_report as aggregate_carrie
 from .file_server_client import FileServerError, load_daily_carrier_report, load_observations
 from .mock_data import build_observations
 from .map_snapshots import MapFilters, request_map
-from .area_client import request_area_query
+from .area_client import request_area_query, request_observation_analysis
 from .chat_area import apply_chat_area, chat_area_context
-from file_server.area_models import AreaQueryInput
+from file_server.area_models import AreaQueryInput, ObservationAnalysisRequest
 
 DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
 Classification = Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"]
@@ -42,8 +42,14 @@ class ChatAreaQueryInput(AreaQueryInput):
     )
 
 
+class ObservationAnalysisInput(ChatAreaQueryInput):
+    analysis: Literal["dimension_mismatch", "similar_dimensions"] = Field(
+        description="dimension_mismatch: kích thước phù hợp nhưng nhãn âm; similar_dimensions: cặp khác nhãn có kích thước tương đồng.")
+    similarity_tolerance_pct: float = Field(default=10, ge=0, le=100)
+
+
 class SearchShipsInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     observed_from: DateString | None = None
     observed_to: DateString | None = None
     ship_id: str | None = Field(default=None, description="Tên tàu chính xác từ dòng '- Tàu:' trong caption Telegram (mock: SHIP_001).")
@@ -51,6 +57,8 @@ class SearchShipsInput(BaseModel):
     max_length_m: float | None = Field(default=None, ge=0)
     min_width_m: float | None = Field(default=None, ge=0)
     max_width_m: float | None = Field(default=None, ge=0)
+    length_gt_m: float | None = Field(default=None, ge=0)
+    carrier_score_gt: float | None = Field(default=None, ge=0, le=1)
     classification: Classification | None = None
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
@@ -130,6 +138,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         ship_id: str | None = None,
         min_length_m: float | None = None, max_length_m: float | None = None,
         min_width_m: float | None = None, max_width_m: float | None = None,
+        length_gt_m: float | None = None, carrier_score_gt: float | None = None,
         classification: Classification | None = None, limit: int = 20, offset: int = 0,
     ) -> dict:
         """Tìm tàu khả nghi, trả URL chi tiết, kích thước, vị trí, ngày giờ, phân loại và URL ảnh.
@@ -139,6 +148,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         kích thước/phân loại. Dùng ship_id để xem riêng một tàu. Có phân trang.
         Với dữ liệu thật, mỗi ảnh là một kết quả riêng; ship_id lấy từ caption Telegram.
         confidence là carrier score; null nếu chưa có prediction.
+        length_gt_m và carrier_score_gt là lớn hơn nghiêm ngặt, không gồm biên;
+        trên 250m và score trên 80% dùng 250 và 0.8. total đếm trước phân trang.
         """
         first, last = _date_range(observed_from, observed_to)
         for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]:
@@ -150,6 +161,10 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                 continue
             if classification is not None and observation["classification"] != classification:
                 continue
+            if length_gt_m is not None and (observation["length_m"] is None or observation["length_m"] <= length_gt_m):
+                continue
+            if carrier_score_gt is not None and (observation["confidence"] is None or observation["confidence"] <= carrier_score_gt):
+                continue
             if any((minimum is not None and (observation[field] is None or observation[field] < minimum)) or
                    (maximum is not None and (observation[field] is None or observation[field] > maximum))
                    for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]):
@@ -158,7 +173,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         matches.sort(key=lambda item: item["ship_id"])
         filters = {"observed_from": observed_from, "observed_to": observed_to, "ship_id": ship_id,
                    "min_length_m": min_length_m, "max_length_m": max_length_m,
-                   "min_width_m": min_width_m, "max_width_m": max_width_m, "classification": classification}
+                   "min_width_m": min_width_m, "max_width_m": max_width_m, "classification": classification,
+                   "length_gt_m": length_gt_m, "carrier_score_gt": carrier_score_gt}
         return {**metadata, "filters": filters, "total": len(matches), "limit": limit, "offset": offset,
                 "ships": deepcopy(matches[offset:offset + limit])}
 
@@ -238,6 +254,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             observed_from: str | None = None, observed_to: str | None = None,
             classification: Classification | None = None, ship_id: str | None = None,
             length_gt_m: float | None = None,
+            carrier_score_gt: float | None = None,
             min_length_m: float | None = None, max_length_m: float | None = None,
             min_width_m: float | None = None, max_width_m: float | None = None,
             limit: int = 20, offset: int = 0,
@@ -252,7 +269,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             Bỏ cả area_name/area_id để tìm vị trí toàn bộ dữ liệu (ví dụ tàu dài
             trên 250 m: length_gt_m=250). Lọc toàn bộ nguồn trước khi phân trang.
             total là số observation_id khác nhau, không phải số tàu duy nhất.
-            Nhãn aircraft_carrier dùng prediction đã lưu, không áp lại ngưỡng score.
+            Nhãn dùng phân loại từ nguồn. carrier_score_gt là lọc score lớn hơn nghiêm ngặt
+            (trên 80%: carrier_score_gt=0.8), không đổi nhãn. null không khớp bộ lọc score.
             Ngày YYYY-MM-DD, gồm hai đầu mốc; không có ngày thì tìm toàn bộ nguồn.
             Với 'vùng này/vùng vừa vẽ/vùng đang chọn', dùng use_chat_area=true,
             bỏ area_name/area_id. Runtime tự cung cấp polygon đã xác nhận của chat;
@@ -262,7 +280,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             query = AreaQueryInput(
                 area_name=area_name, area_id=area_id, observed_from=observed_from,
                 observed_to=observed_to, classification=classification, ship_id=ship_id,
-                length_gt_m=length_gt_m, min_length_m=min_length_m, max_length_m=max_length_m,
+                length_gt_m=length_gt_m, carrier_score_gt=carrier_score_gt,
+                min_length_m=min_length_m, max_length_m=max_length_m,
                 min_width_m=min_width_m, max_width_m=max_width_m, limit=limit, offset=offset,
             )
             try:
@@ -286,6 +305,59 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                                     "nếu dữ liệu đã đổi, hãy tạo lại vùng.") from exc
 
         query_tools.append(query_ships_in_area)
+
+        @tool(args_schema=ObservationAnalysisInput)
+        def analyze_ship_observations(
+            analysis: str, similarity_tolerance_pct: float = 10,
+            area_name: str | None = None, area_id: str | None = None,
+            observed_from: str | None = None, observed_to: str | None = None,
+            classification: Classification | None = None, ship_id: str | None = None,
+            length_gt_m: float | None = None, carrier_score_gt: float | None = None,
+            min_length_m: float | None = None, max_length_m: float | None = None,
+            min_width_m: float | None = None, max_width_m: float | None = None,
+            limit: int = 20, offset: int = 0,
+            use_chat_area: bool = False, config: RunnableConfig = None,
+        ) -> dict:
+            """Phân tích kích thước và kết quả nhận dạng trên toàn bộ observations trước phân trang.
+
+            dimension_mismatch: tìm kích thước phù hợp tàu sân bay nhưng nhãn
+            not_aircraft_carrier. Mặc định dài 250–350m và rộng 50–80m (gồm biên),
+            cho phép thay khoảng kích thước theo câu hỏi. Đây là tiêu chí lọc.
+            similar_dimensions: cặp observations có nhãn aircraft_carrier và
+            not_aircraft_carrier, sai lệch CẢ dài và rộng không quá
+            similarity_tolerance_pct (mặc định 10%). Sai lệch = 100*abs(a-b)/max(a,b).
+            Bỏ classification khi so sánh cặp; không mặc định giới hạn kích thước.
+            total là số cặp ở chế độ so sánh, không phải số tàu hay cùng một tàu.
+            Dùng use_chat_area=true cho vùng chat; bỏ vùng để phân tích toàn nguồn.
+            Không lấy trang kết quả search_ships rồi tự suy ra số lượng toàn bộ.
+            """
+            try:
+                query = AreaQueryInput(
+                    area_name=area_name, area_id=area_id, observed_from=observed_from,
+                    observed_to=observed_to, classification=classification, ship_id=ship_id,
+                    length_gt_m=length_gt_m, carrier_score_gt=carrier_score_gt,
+                    min_length_m=min_length_m, max_length_m=max_length_m,
+                    min_width_m=min_width_m, max_width_m=max_width_m, limit=limit, offset=offset)
+                context = chat_area_context(config)
+                payload = apply_chat_area(query.model_dump(), config) if use_chat_area else query.model_dump()
+                payload.update(analysis=analysis, similarity_tolerance_pct=similarity_tolerance_pct)
+                payload = ObservationAnalysisRequest.model_validate(payload).model_dump()
+                result = request_observation_analysis(payload, data_source=data_source)
+                if context:
+                    result = {**result, "persistent_map": True}
+                    result.pop("map_url", None)
+                    if result.get("status") == "needs_drawing":
+                        result["message"] = "Vẽ/chọn vùng trên map rồi bấm Xác nhận; gửi 'map' nếu chưa mở."
+                if use_chat_area:
+                    result.pop("area_id", None)
+                    result.update(query_scope="chat_active_area", chat_area_revision=context["revision"])
+                return result
+            except ValueError as exc:
+                raise ToolException(str(exc)) from exc
+            except httpx.HTTPError as exc:
+                raise ToolException("Chưa phân tích được dữ liệu. Kiểm tra file server; không dùng kết quả cũ.") from exc
+
+        query_tools.append(analyze_ship_observations)
 
     if not is_mock:
         from .image_review import create_image_review_tool

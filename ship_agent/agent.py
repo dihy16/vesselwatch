@@ -48,7 +48,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -56,7 +56,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name == "query_ships_in_area":
+                if message.name in {"query_ships_in_area", "analyze_ship_observations"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -132,6 +132,20 @@ Hệ thống tự đính kèm map; không gợi ý hay tự tạo polygon để 
 Không kết luận không có tàu khi status là needs_drawing. Không tự bịa area_id.
 Nếu có area_id do người dùng cung cấp, dùng mã đó cùng đúng bộ lọc đang được hỏi.
 length_gt_m dùng cho chiều dài lớn hơn nghiêm ngặt (trên 250 m là length_gt_m=250).
+Với kích thước phù hợp tàu sân bay nhưng mô hình kết luận không phải, dùng
+analyze_ship_observations với analysis="dimension_mismatch". Mặc định dài 250–350 m,
+rộng 50–80 m; nêu khoảng đã dùng nếu người dùng chưa chỉ định. Đây là tiêu chí
+lọc kích thước, không kết luận mô hình sai hay xác nhận loại tàu.
+Với dài trên 250 m, được nhận dạng tàu sân bay và score trên 80%, dùng
+query_ships_in_area (hoặc search_ships nếu không có vùng) với length_gt_m=250,
+classification="aircraft_carrier", carrier_score_gt=0.8. Lấy total do tool trả về,
+không đếm số dòng của trang; carrier score không phải độ tin cậy nhãn âm.
+Với kích thước tương đồng nhưng kết quả phân loại khác nhau, dùng
+analyze_ship_observations với analysis="similar_dimensions", bỏ classification.
+Sai lệch mặc định 10% cho CẢ chiều dài và rộng, mẫu số là kích thước lớn hơn;
+dùng similarity_tolerance_pct khác nếu người dùng chỉ định. Trả ví dụ theo cặp,
+kèm kích thước và nhãn của hai observations; nêu total là số cặp, không phải
+số tàu duy nhất, không khẳng định hai observations thuộc cùng một tàu.
 Kết quả truy vấn vùng đếm lượt phát hiện riêng theo observation_id, không đếm tàu duy nhất.
 Ngày truyền vào tool chỉ có YYYY-MM-DD, bao gồm cả hai đầu mốc.
 '7 ngày qua' là ngày tham chiếu và 6 ngày trước đó. Không có khoảng ngày thì

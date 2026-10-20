@@ -82,3 +82,27 @@ def test_confirmation_button_calls_agent_with_exact_area_and_filters(area_app, m
     query, source = calls[0]
     assert source == "demo" and query["area_id"] == result["area_id"]
     assert query["classification"] == "aircraft_carrier" and query["length_gt_m"] == 250
+
+
+def test_analysis_routes_and_strict_score_filter(area_app):
+    app, rows = area_app
+    for row in rows:
+        row["confidence"] = .9
+    with TestClient(app) as client:
+        count = client.post("/area-queries", json={"polygon": SQUARE, "length_gt_m": 250,
+            "carrier_score_gt": .8, "classification": "aircraft_carrier", "limit": 1}).json()
+        assert count["total"] == 2 and len(count["ships"]) == 1
+        mismatch = client.post("/observation-analyses", json={"analysis": "dimension_mismatch", "polygon": SQUARE}).json()
+        assert mismatch["total"] == 1 and mismatch["ships"][0]["observation_id"] == "negative"
+        pairs = client.post("/observation-analyses", json={"analysis": "similar_dimensions", "polygon": SQUARE, "limit": 1}).json()
+        assert pairs["total"] == 2 and len(pairs["pairs"]) == 1
+        assert pairs["count_unit"] == "observation_pairs"
+        assert "ships" not in pairs
+        followup = client.post("/observation-analyses", json={"analysis": "similar_dimensions",
+            "area_id": pairs["area_id"], "offset": 1, "limit": 1}).json()
+        assert followup["total"] == 2 and followup["pairs"] != pairs["pairs"]
+        waiting = client.post("/observation-analyses", json={"analysis": "similar_dimensions", "area_name": "Hoàng Sa"}).json()
+        assert waiting["status"] == "needs_drawing" and "total" not in waiting
+        assert client.post("/observation-analyses", json={"analysis": "similar_dimensions",
+            "classification": "aircraft_carrier"}).status_code == 422
+        assert client.post("/area-queries", json={"carrier_score_gt": 1.1}).status_code == 422

@@ -17,6 +17,8 @@ class AreaQueryInput(BaseModel):
     classification: Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"] | None = None
     ship_id: str | None = None
     length_gt_m: float | None = Field(default=None, ge=0)
+    carrier_score_gt: float | None = Field(default=None, ge=0, le=1,
+        description="Carrier score lớn hơn nghiêm ngặt mức này; trên 80% dùng 0.8.")
     min_length_m: float | None = Field(default=None, ge=0)
     max_length_m: float | None = Field(default=None, ge=0)
     min_width_m: float | None = Field(default=None, ge=0)
@@ -49,4 +51,18 @@ class AreaRequest(AreaQueryInput):
     def one_area(self):
         if self.polygon and (self.area_name or self.area_id):
             raise ValueError("Chỉ dùng một nguồn xác định khu vực.")
+        return self
+
+
+class ObservationAnalysisRequest(AreaRequest):
+    analysis: Literal["dimension_mismatch", "similar_dimensions"]
+    similarity_tolerance_pct: float = Field(default=10, ge=0, le=100,
+        description="Sai lệch tối đa cho cả dài và rộng: 100*abs(a-b)/max(a,b).")
+
+    @model_validator(mode="after")
+    def compatible_classification(self):
+        if self.analysis == "similar_dimensions" and self.classification is not None:
+            raise ValueError("So sánh khác nhãn cần cả hai phân loại; bỏ classification.")
+        if self.analysis == "dimension_mismatch" and self.classification not in (None, "not_aircraft_carrier"):
+            raise ValueError("Truy vấn kích thước phù hợp nhưng nhãn âm cần not_aircraft_carrier.")
         return self
