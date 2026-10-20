@@ -10,6 +10,7 @@ Trong thư mục repo, tạo folder sau rồi đưa **mô tả và ảnh mẫu t
 
 ```bash
 mkdir -p data/carrier_references
+cp -n docs/carrier_references/description.md data/carrier_references/description.md
 ```
 
 ```text
@@ -21,9 +22,12 @@ data/carrier_references/
     carrier-example-03.webp
 ```
 
-`description.md` là mô tả UTF-8 do bạn cung cấp về những đặc điểm muốn đối chiếu.
-Không có mô tả hay ảnh mẫu mặc định được giả lập sẵn. Ảnh và mô tả nằm trong
-`data/` được Git ignore; `git pull` không mang bộ mẫu lên MID.
+`description.md` là mô tả UTF-8 về những đặc điểm muốn đối chiếu. Repo có bản mô
+tả khởi đầu tại `docs/carrier_references/description.md`; lệnh trên chép bản này
+vào folder runtime nếu chưa có file, không ghi đè mô tả riêng đã có của bạn.
+Bạn có thể chỉnh bản runtime cho phù hợp với bộ ảnh thật. Không có ảnh mẫu mặc
+định được giả lập sẵn. Ảnh và mô tả nằm trong `data/` được Git ignore;
+`git pull` chỉ mang bản mô tả trong `docs/`, không mang bộ ảnh mẫu lên MID.
 
 Đường dẫn được cấu hình bằng `CARRIER_REFERENCE_DIR` trong `file_server/config.py`.
 Đọc tất cả ảnh hỗ trợ trong folder và folder con: PNG, JPEG, WebP, TIFF, BMP, GIF
