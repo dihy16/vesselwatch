@@ -1,0 +1,6 @@
+[
+  {
+    "image": "apple.jpg",
+    "caption": "TEST FIXTURE: ảnh táo, không phải quan sát tàu thật. Tọa độ, kích thước và thời gian là dữ liệu giả để đi qua loader hiện tại.\n- Vị trí: [0, 0]\n- Thời gian: 2026-10-20 00:00:00\n- Dài / Rộng: 1(m)/1(m)\n- Tàu: TEST_APPLE"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "description": "Synthetic loader fixture only; this label and score were not produced by a classifier.",
+  "predictions": [
+    {
+      "image_path": "apple.jpg",
+      "carrier_probability": 0.0,
+      "predicted_aircraft_carrier": false
+    }
+  ]
+}
