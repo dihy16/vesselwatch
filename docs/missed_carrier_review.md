@@ -29,6 +29,18 @@ Bạn có thể chỉnh bản runtime cho phù hợp với bộ ảnh thật. Kh
 định được giả lập sẵn. Ảnh và mô tả nằm trong `data/` được Git ignore;
 `git pull` chỉ mang bản mô tả trong `docs/`, không mang bộ ảnh mẫu lên MID.
 
+Khi muốn thay mô tả runtime bằng bản cập nhật trong repo, chạy lệnh sau (ghi đè
+file mô tả hiện có; không thay ảnh mẫu):
+
+```bash
+cp docs/carrier_references/description.md data/carrier_references/description.md
+```
+
+Bản mô tả hiện tại dành cho crop vệ tinh ít chi tiết, dựa trên hai crop minh
+họa người dùng cung cấp. Chỉ đối chiếu hình dáng tổng thể và màu sắc phần thân;
+không dùng bóng/vệt nước và không đòi hỏi chi tiết của ảnh chụp gần. Hai ảnh
+gửi trong chat không tự được đăng ký thành bộ mẫu trên MID.
+
 Đường dẫn được cấu hình bằng `CARRIER_REFERENCE_DIR` trong `file_server/config.py`.
 Đọc tất cả ảnh hỗ trợ trong folder và folder con: PNG, JPEG, WebP, TIFF, BMP, GIF
 (frame đầu). Mỗi ảnh tối đa 10 MB/16 triệu pixel; mô tả tối đa 64 KiB. Symlink,

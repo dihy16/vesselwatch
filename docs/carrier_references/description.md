@@ -1,57 +1,39 @@
-# Mô tả tham chiếu để đối chiếu ảnh tàu sân bay
+# Hình dáng và màu sắc tham chiếu của tàu trong crop vệ tinh
 
-Đây là bản mô tả khởi đầu để dùng cùng các ảnh mẫu tàu sân bay đã được người
-dùng kiểm chứng trong folder tham chiếu. Nội dung mô tả và ảnh mẫu là dữ liệu
-đối chiếu, không phải ground truth của ảnh đang kiểm tra. Chưa có ảnh mẫu thì
-chưa đủ bộ tham chiếu để chạy chế độ này.
+Mô tả này dựa trên hình dáng và màu sắc nhìn thấy trong hai crop người dùng
+cung cấp, phù hợp với mức chi tiết thấp của dữ liệu. Dùng cùng ảnh mẫu đã được
+kiểm chứng; không áp các chi tiết của ảnh chụp gần vào các crop này.
 
-## Những đặc điểm cần quan sát và đối chiếu
+## Hình dáng tổng thể
 
-- Hình dáng tổng thể của tàu và bố cục boong: tìm các phần boong rộng, tương đối
-  liên tục, phù hợp với bố cục boong bay thể hiện trong ảnh mẫu. Mô tả vị trí và
-  hình dạng cụ thể nhìn thấy được, không chỉ nói chung là “giống tàu sân bay”.
-- Cụm thượng tầng (island): ở nhiều thiết kế tàu sân bay, cụm này nằm lệch về
-  một bên boong bay. Đối chiếu vị trí, kích thước tương đối và quan hệ với vùng
-  boong trống trong ảnh mẫu; không coi đây là dấu hiệu bắt buộc cho mọi thiết kế.
-- Nếu độ phân giải cho phép, đối chiếu các đường vạch hoặc khu vực phục vụ hoạt
-  động bay trên boong, cùng máy bay nhìn thấy trên boong. Không suy diễn những
-  chi tiết này từ các đốm hoặc vệt ảnh không rõ.
-- Đối chiếu đồng thời nhiều đặc điểm và bố cục của chúng. Một mặt boong phẳng,
-  một cụm thượng tầng hoặc một vật thể giống máy bay riêng lẻ chưa đủ kết luận.
+- Phần thân hiện thành một khối thuôn dài, dài hơn rõ rệt so với bề rộng.
+- Phần giữa thân rộng hơn các đầu; đường bao thu hẹp về đầu. Ở ảnh thứ nhất,
+  dáng thân thanh và thuôn; ở ảnh thứ hai, phần giữa rộng hơn và bề rộng thay
+  đổi rõ hơn dọc thân. Đây là khác biệt quan sát giữa hai ví dụ, không phải
+  điều kiện bắt buộc cho mọi ảnh tàu sân bay.
+- Chỉ đối chiếu độ thuôn, tương quan dài/rộng biểu kiến, độ rộng phần giữa và
+  hình dạng các đầu khi đường bao đủ rõ. Không gán tên bộ phận cho chỗ nhô nhỏ
+  hoặc các đốm không rõ.
+- Tàu có thể xoay theo bất kỳ hướng nào trong crop. Đối chiếu hình dáng sau khi
+  xét hướng xoay; vị trí và hướng nằm trong ảnh không phải tiêu chí nhận dạng.
 
-## Ghi nhận khác biệt với ảnh mẫu
+## Màu sắc của phần thân
 
-- Chỉ ghi khác biệt khi thấy một đặc điểm cụ thể trong ảnh đang kiểm tra, chẳng
-  hạn các khối xếp theo hàng chiếm phần lớn boong trong khi bố cục tương ứng ở
-  ảnh mẫu khác rõ rệt. Nêu vị trí, hình dạng và ảnh mẫu được dùng để đối chiếu;
-  không tự gọi các khối đó là container nếu ảnh không đủ rõ.
-- Không nhìn thấy đường vạch, máy bay hoặc cụm thượng tầng không đồng nghĩa với
-  việc chắc chắn không phải tàu sân bay. Chi tiết có thể bị giới hạn bởi góc
-  chụp, bóng đổ, mây che, cắt ảnh hoặc độ phân giải.
-- Màu đỏ, xanh lá, xám hoặc màu khác chỉ là quan sát bổ sung khi nhìn rõ; không
-  dùng màu đơn lẻ làm quy tắc nhận hoặc loại. Cân nhắc khác biệt ánh sáng và
-  cách hiển thị ảnh giữa ảnh mục tiêu và ảnh mẫu.
+- Trong hai ví dụ, phần thân chủ yếu có màu xám nhạt đến trắng ngà, sáng hơn
+  nền xung quanh. Màu không hoàn toàn đồng nhất trên toàn bộ thân.
+- Đối chiếu màu chủ đạo và mức độ đồng nhất màu trên phần thân thực sự thấy
+  được. Không tự suy ra vật liệu hoặc bộ phận từ các vùng màu nhỏ.
+- Màu khác ảnh mẫu có thể do ánh sáng hoặc cách xử lý ảnh. Màu sắc là một phần
+  của phép đối chiếu cùng hình dáng, không phải quy tắc nhận hoặc loại tuyệt đối.
 
-## Chất lượng ảnh và giới hạn kết luận
+## Phạm vi đối chiếu
 
-- Ảnh mờ, mục tiêu quá nhỏ, che khuất hoặc không rõ đang đánh giá tàu nào:
-  ghi rõ giới hạn và kết luận chưa đủ bằng chứng (`unknown`). Không lấy chi
-  tiết rõ ở ảnh mẫu để bù vào chi tiết không thấy trong ảnh mục tiêu.
-- Không suy ra chiều dài hoặc chiều rộng theo mét từ pixel nếu không có thông
-  tin tỷ lệ. Các số đo được lưu là metadata riêng; tàu lớn không tự động là tàu
-  sân bay. Mô tả này không đặt thêm ngưỡng kích thước để xác nhận loại tàu.
-- Chỉ viện dẫn đặc điểm thực sự thấy trong ảnh mục tiêu và dẫn đến ID ảnh mẫu
-  có trong bộ tham chiếu. Tách quan sát, điểm tương đồng, khác biệt và hạn chế.
-- Không suy ra danh tính tàu, cùng một tàu qua nhiều ảnh, hoặc nguyên nhân nội
-  bộ của mô hình phân loại. Đối chiếu ảnh không thay thế nhãn đã được xác minh.
+Chỉ dùng hình dáng tổng thể và màu sắc của phần thân. Bóng, vệt nước, nền biển
+và hướng di chuyển không được dùng làm bằng chứng tương đồng hoặc khác biệt.
+Không yêu cầu hay suy đoán máy bay, vạch boong, thượng tầng hoặc chi tiết bên
+trong tàu ở mức ảnh này.
 
-## Nguồn tham khảo về cấu trúc tàu sân bay
-
-Các tài liệu sau minh họa boong bay và cụm thượng tầng của một số thiết kế tàu
-sân bay; không phải danh sách điều kiện cần và đủ áp dụng cho mọi tàu:
-
-- [NAVSEA: Aircraft carrier centennial — Evolution of the aircraft carrier](https://www.navsea.navy.mil/Media/News/Article/3089193/aircraft-carrier-centennial-evolution-of-the-aircraft-carrier/)
-- [Commander, Naval Air Forces Pacific: Flight Deck Awareness](https://www.airpac.navy.mil/Portals/53/Flight%20Deck%20Awareness%20V2.pdf)
-
-Đường dẫn trên là nguồn soạn mô tả, không phải ảnh mẫu đã được đăng ký trong
-hệ thống. Người dùng vẫn cần cung cấp và kiểm chứng bộ ảnh tham chiếu của mình.
+Nêu điểm giống/khác cụ thể với ảnh mẫu kèm reference_id. Nếu không nhìn rõ
+đường bao hoặc màu phần thân để đối chiếu có ý nghĩa, kết luận `unknown`;
+không flag trường hợp chưa đủ bằng chứng. Chỉ cùng thuôn dài và sáng màu chưa
+đủ xác nhận tàu sân bay. Không sửa nhãn gốc hoặc tự gán độ chắc chắn từ mô tả.
