@@ -12,11 +12,13 @@ from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import ValidationError
 from langchain_core.tools import ToolException
+from langchain_core.runnables import RunnableConfig
 
 from .dates import DataSource, data_timezone, resolve_reference_date
 from .report_artifacts import render_carrier_artifact
 from .map_artifacts import render_map_artifact
 from .llm_context import messages_for_llm
+from .chat_area import chat_area_note
 from .tools import create_tools
 
 
@@ -51,6 +53,9 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 maps.clear()
             else:
                 result = json.loads(message.content)
+                if result.get("persistent_map"):
+                    # The user already has the chat-linked map mounted in Artifacts.
+                    continue
                 if message.name == "query_ships_in_area":
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
@@ -160,7 +165,7 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
 {response_note}
 """)
 
-    def call_model(state: MessagesState):
+    def call_model(state: MessagesState, config: RunnableConfig):
         reports = _current_reports(state["messages"])
         maps = _current_maps(state["messages"])
         demo_images_requested = False
@@ -170,8 +175,13 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
         # Reports are added deterministically, without asking the LLM to copy HTML.
         # Emit the complete node output in messages mode instead of streaming an
         # incomplete answer before the artifact has been attached.
+        area_note = chat_area_note(config)
+        messages = [prompt]
+        if area_note:
+            messages.append(SystemMessage(content=area_note))
+        messages.extend(messages_for_llm(state["messages"]))
         response = llm_with_tools.invoke(
-            [prompt, *messages_for_llm(state["messages"])],
+            messages,
             config={"tags": ["nostream"]} if reports or maps or demo_images_requested else None,
         )
         if (reports or maps) and not response.tool_calls:

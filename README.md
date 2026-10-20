@@ -1,5 +1,14 @@
 # Agent truy vấn tàu
 
+## Vùng được chọn theo cuộc chat Open WebUI
+
+Pipe LangGraph hiện tại có thể mở map Artifacts và đọc một polygon đã xác nhận
+cho mỗi user/chat từ JSON. Chạy server map bằng
+`python3 scripts/run_vessel_map_demo.py --port 8000`, cập nhật Function bằng
+`scripts/aircraft_carrier_pipe.py` và cấu hình `MAP_URL`/`MAP_API_URL` trong Valves.
+Xem [hướng dẫn liên kết vùng với cuộc chat](docs/chat_area_sessions.md) để chạy trên
+MID, cấu hình URL và thử vẽ → xác nhận → hỏi về vùng trong cùng cuộc chat.
+
 ## Thử đọc ảnh bằng AI
 
 Tool `review_ship_images(observation_id)` đọc ảnh đầu tiên của một lượt quan sát,

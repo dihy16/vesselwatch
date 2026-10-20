@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 from langchain_core.tools import ToolException, tool
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 from .dates import DataSource, data_timezone, resolve_reference_date
@@ -15,6 +16,7 @@ from .file_server_client import FileServerError, load_daily_carrier_report, load
 from .mock_data import build_observations
 from .map_snapshots import MapFilters, request_map
 from .area_client import request_area_query
+from .chat_area import apply_chat_area, chat_area_context
 from file_server.area_models import AreaQueryInput
 
 DateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="Ngày YYYY-MM-DD theo múi giờ của nguồn dữ liệu (mặc định UTC).")]
@@ -30,6 +32,13 @@ class CountShipsInput(BaseModel):
 class CarrierReportInput(CountShipsInput):
     output_format: Literal["html", "png"] = Field(
         default="html", description="html: báo cáo Artifacts; png: ảnh chart riêng trong chat.",
+    )
+
+
+class ChatAreaQueryInput(AreaQueryInput):
+    use_chat_area: bool = Field(
+        default=False,
+        description="Dùng đúng một vùng đã xác nhận trên map của cuộc chat hiện tại; bỏ area_name và area_id.",
     )
 
 
@@ -223,7 +232,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         query_tools.append(create_vessel_map)
 
     if not is_mock:
-        @tool(args_schema=AreaQueryInput)
+        @tool(args_schema=ChatAreaQueryInput)
         def query_ships_in_area(
             area_name: str | None = None, area_id: str | None = None,
             observed_from: str | None = None, observed_to: str | None = None,
@@ -232,6 +241,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             min_length_m: float | None = None, max_length_m: float | None = None,
             min_width_m: float | None = None, max_width_m: float | None = None,
             limit: int = 20, offset: int = 0,
+            use_chat_area: bool = False, config: RunnableConfig = None,
         ) -> dict:
             """Truy vấn lượt phát hiện theo vùng, ngày, kích thước và nhãn.
 
@@ -244,6 +254,10 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             total là số observation_id khác nhau, không phải số tàu duy nhất.
             Nhãn aircraft_carrier dùng prediction đã lưu, không áp lại ngưỡng score.
             Ngày YYYY-MM-DD, gồm hai đầu mốc; không có ngày thì tìm toàn bộ nguồn.
+            Với 'vùng này/vùng vừa vẽ/vùng đang chọn', dùng use_chat_area=true,
+            bỏ area_name/area_id. Runtime tự cung cấp polygon đã xác nhận của chat;
+            không tự nhập tọa độ hoặc lấy mã vùng cũ từ lịch sử. Chưa chọn vùng
+            thì báo cần xác nhận, không chuyển thành truy vấn toàn bộ dữ liệu.
             """
             query = AreaQueryInput(
                 area_name=area_name, area_id=area_id, observed_from=observed_from,
@@ -252,8 +266,22 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                 min_width_m=min_width_m, max_width_m=max_width_m, limit=limit, offset=offset,
             )
             try:
-                return request_area_query(query.model_dump(), data_source=data_source)
+                context = chat_area_context(config)
+                payload = apply_chat_area(query.model_dump(), config) if use_chat_area else query.model_dump()
+                result = request_area_query(payload, data_source=data_source)
+                if context:
+                    # The model needs counts/status, not the chat session's URL capability.
+                    result = {**result, "persistent_map": True}
+                    result.pop("map_url", None)
+                    if result.get("status") == "needs_drawing":
+                        result["message"] = "Vẽ/chọn vùng trên map của cuộc chat rồi bấm Xác nhận; gửi 'map' nếu chưa mở."
+                if use_chat_area:
+                    result.pop("area_id", None)
+                    result.update(query_scope="chat_active_area", chat_area_revision=context["revision"])
+                return result
             except (httpx.HTTPError, ValueError) as exc:
+                if use_chat_area and isinstance(exc, ValueError):
+                    raise ToolException(str(exc)) from exc
                 raise ToolException("Chưa truy vấn được vùng. Kiểm tra data server và mã vùng; "
                                     "nếu dữ liệu đã đổi, hãy tạo lại vùng.") from exc
 
