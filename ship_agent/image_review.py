@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import config
 from file_server.image_assets import normalize_image
 from .reference_review import CarrierReferenceReview, reference_review_content, reference_review_result
+from .carrier_reference_client import load_carrier_references
+from .observation_evidence import build_observation_evidence
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
@@ -26,6 +28,8 @@ MAX_IMAGE_PIXELS = 16_000_000
 class ReviewImageInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     observation_id: str = Field(min_length=1, description="observation_id chính xác từ search_ships hoặc query_ships_in_area.")
+    use_carrier_references: bool = Field(default=False,
+        description="True để đối chiếu một observation bất kỳ với toàn bộ bộ mẫu và tổng hợp bằng chứng (BR 13).")
 
 
 class VisualReview(BaseModel):
@@ -142,7 +146,7 @@ Chỉ trả một JSON object theo schema sau, không Markdown:
 
 def create_image_review_tool(observations, *, data_source):
     @tool(args_schema=ReviewImageInput)
-    def review_ship_images(observation_id: str) -> dict:
+    def review_ship_images(observation_id: str, use_carrier_references: bool = False) -> dict:
         """Đọc nội dung ảnh thật để đánh giá bổ sung một lượt phát hiện tàu.
 
         Dùng khi yêu cầu phân tích ảnh, kiểm tra lại nhận dạng hoặc so sánh đặc điểm nhìn thấy.
@@ -150,23 +154,40 @@ def create_image_review_tool(observations, *, data_source):
         Trả đặc điểm nhìn thấy, chất lượng ảnh, hạn chế, nhận xét độc lập và đối chiếu prediction cũ.
         Không thay nhãn gốc; kết quả không phải nhãn xác nhận, unknown nếu không đủ rõ.
         Chỉ xem/hiển thị ảnh thì dùng URL từ search_ships, không cần gọi tool này.
+        Với câu hỏi bằng chứng ủng hộ/mâu thuẫn tàu sân bay hoặc 'vì sao được nhận
+        dạng', đặt use_carrier_references=true: đối chiếu TOÀN BỘ bộ mẫu, trả
+        supporting_evidence/contradicting_evidence/unresolved, metadata kích thước
+        và prediction. Không lọc theo nhãn, score, kích thước hoặc ngày của 14a.
+        Mặc định false giữ đánh giá ảnh độc lập thông thường không cần bộ mẫu.
         """
         observation = next((row for row in observations if row["observation_id"] == observation_id), None)
         if observation is None:
             raise ToolException("Không tìm thấy observation_id; lấy ID chính xác từ tool truy vấn.")
+        if use_carrier_references:
+            try:
+                library = load_carrier_references()
+            except (httpx.HTTPError, OSError, ValueError) as exc:
+                raise ToolException("Chưa tải đủ bộ mẫu; kiểm tra CARRIER_REFERENCE_DIR, description.md và toàn bộ ảnh mẫu.") from exc
+            reviewed = review_image_against_references(observation, library, data_source=data_source)
+            try:
+                return build_observation_evidence(observation, reviewed, library)
+            except ValueError as exc:
+                raise ToolException("Bằng chứng ảnh không khớp observation hoặc bộ mẫu; chưa tổng hợp được.") from exc
         return review_image(observation, data_source=data_source)
 
     return review_ship_images
 
 
-def review_image_against_references(observation, library, *, model=None, transport=None):
+def review_image_against_references(observation, library, *, data_source="file_server", model=None, transport=None):
     """Compare target pixels with every reference, without revealing saved predictions."""
+    if data_source == "mock":
+        raise ToolException("Mock không có ảnh thật để đối chiếu bộ mẫu.")
     if not library.images or not library.description.strip():
         raise ToolException("Cần mô tả và toàn bộ ảnh mẫu để đối chiếu.")
     if not observation.get("images"):
         raise ToolException("Lượt quan sát không có ảnh để đối chiếu.")
     try:
-        target, width, height = normalize_image(_image_bytes(observation, "file_server", transport),
+        target, width, height = normalize_image(_image_bytes(observation, data_source, transport),
                                                 max_bytes=MAX_IMAGE_BYTES, max_pixels=MAX_IMAGE_PIXELS)
     except (httpx.HTTPError, OSError, ValueError, Image.DecompressionBombWarning,
             Image.DecompressionBombError) as exc:
@@ -181,6 +202,8 @@ Nếu TARGET mờ, quá nhỏ, không rõ mục tiêu hoặc không đủ bằng
 assessment=unknown. Không lấy ảnh mẫu rõ hơn để bù chi tiết bị thiếu của TARGET.
 Chỉ chọn aircraft_carrier khi TARGET đủ rõ và có đặc điểm phù hợp với bộ mẫu;
 ghi đặc điểm thực sự thấy và reference_id cùng điểm tương đồng cụ thể để kiểm chứng.
+Nếu thấy đặc điểm cụ thể mâu thuẫn với mẫu, ghi vào differences kèm reference_id;
+không coi khác góc chụp hoặc không thấy chi tiết là chứng minh không phải tàu sân bay.
 Đây là đối chiếu bổ sung, không phải nhãn xác nhận. Không gán similarity hay xác suất số học.
 Trả đúng JSON theo schema, không Markdown:
 """ + json.dumps(CarrierReferenceReview.model_json_schema(), ensure_ascii=False)

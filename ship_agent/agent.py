@@ -102,7 +102,7 @@ def build_agent(
     image_note = ("Nói rõ đây là URL ảnh giả lập và bạn chưa phân tích nội dung ảnh."
                   if data_source == "mock" else
                   "URL ảnh từ tool truy vấn chỉ dùng hiển thị; bạn chưa phân tích ảnh cho tới khi "
-                  "review_ship_images trả thành công. Khi yêu cầu đọc/phân tích ảnh hoặc kiểm tra lại "
+                  "review_ship_images hoặc investigate_missed_carriers trả thành công. Khi yêu cầu đọc/phân tích ảnh hoặc kiểm tra lại "
                   "nhận dạng, lấy observation_id bằng tool truy vấn rồi gọi review_ship_images. "
                   "Dùng visual_review để mô tả ảnh; phân biệt với saved_prediction. "
                   "Nếu comparison=disagrees, nói cần kiểm tra lại, không kết luận nhãn gốc sai. "
@@ -123,6 +123,20 @@ Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(d
 {map_note}
 Dùng count_ships cho thống kê theo ngày; search_ships cho danh sách, kích thước,
 phân loại hoặc xem riêng ship_id. Luôn dùng tool để lấy dữ liệu, không tự bịa số.
+Khi hỏi bằng chứng ủng hộ/mâu thuẫn một observation là tàu sân bay, hoặc 'vì sao
+được nhận dạng', tìm đúng observation_id rồi gọi review_ship_images với
+use_carrier_references=true. Không dùng bộ lọc nhãn âm/score/chiều dài của 14a
+cho câu hỏi này. Nếu ship_id có nhiều observations và chưa rõ ảnh/thời điểm muốn
+xem, hỏi để chọn đúng observation; không trộn bằng chứng từ các ảnh khác nhau.
+Tổng hợp supporting_evidence, contradicting_evidence và unresolved; phân biệt
+model_output là prediction đã lưu với reference_comparison là đối chiếu ảnh độc lập.
+Trình bày số đo từ measured_dimensions và so với reference_description chỉ khi
+mô tả có tiêu chí kích thước rõ ràng. Không tự đặt ngưỡng kích thước, đo mét từ
+pixel hoặc suy ra loại tàu chỉ từ kích thước. Ảnh không rõ không phải phản chứng.
+comparison=disagrees nghĩa là cần kiểm tra lại, không chứng minh nhãn gốc sai.
+Không biến bằng chứng quan sát được thành nguyên nhân nội bộ của classifier.
+Thiếu bộ mẫu hoặc lỗi đọc ảnh thì nói chưa đối chiếu được, không quay về đoán
+từ prediction và kích thước. Chỉ hiển thị ảnh không cần đối chiếu bộ mẫu.
 Với truy vấn khu vực hoặc vị trí của tàu dài trên một mức, dùng query_ships_in_area
 nếu tool này có sẵn. Chỉ Biển Đông và Vịnh Bắc Bộ có vùng định nghĩa sẵn.
 Tên hiển thị và tên vùng truyền vào tool dùng tiếng Việt; gọi Biển Đông là Biển Đông.

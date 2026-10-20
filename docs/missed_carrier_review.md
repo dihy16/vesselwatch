@@ -93,3 +93,31 @@ không gọi vision khi không có ứng viên. Trang rỗng ở offset vượt 
 `empty_page`. Thiếu bộ mẫu khi cần đọc ảnh báo lỗi; toàn bộ lượt đọc thất bại trả
 `failed`, không được diễn giải là không có trường hợp bị bỏ sót. Chưa có bộ mẫu
 thật hoặc chưa chạy trên MID thì chưa đánh giá chất lượng nhận dạng thực tế.
+
+## Câu 13: bằng chứng của một observation bất kỳ
+
+Dùng lại `review_ship_images` với `use_carrier_references=true` sau khi tìm đúng
+`observation_id` bằng `search_ships` hoặc `query_ships_in_area`. Không áp bộ lọc
+nhãn âm, score, chiều dài hoặc khoảng ngày bắt buộc của 14a lên một observation đã chọn.
+Nếu một ship_id trả nhiều observations và chưa rõ ảnh/thời điểm muốn xem, agent
+cần xác định observation trước, không ghép bằng chứng từ nhiều ảnh.
+
+Ví dụ câu hỏi: “Dựa trên ảnh, kích thước và prediction, bằng chứng nào ủng hộ hoặc
+mâu thuẫn với nhận định observation này là tàu sân bay?”
+
+Tool tải cùng bộ mô tả và **tất cả ảnh mẫu**, dùng lại hàm đối chiếu ảnh của 14a,
+rồi tổng hợp `supporting_evidence`, `contradicting_evidence`, `unresolved` cùng
+metadata kích thước, nhãn/score gốc và revision bộ mẫu. Evidence từ prediction
+(`model_output`) được tách khỏi nhận xét pixel (`reference_comparison`). Cả điểm
+tương đồng và khác biệt cụ thể có thể xuất hiện trong cùng một đánh giá.
+
+Số đo được giữ nguyên trong `measured_dimensions`. Không tự áp ngưỡng 250 m hay
+coi kích thước tự nó là bằng chứng xác nhận/phủ nhận tàu sân bay. Chỉ đối chiếu số
+đo với tiêu chí kích thước nếu bộ mô tả do người dùng cung cấp có tiêu chí đó.
+Ảnh mờ hoặc nhận xét âm không có đặc điểm/khác biệt dẫn đến ảnh mẫu được coi là
+chưa đủ bằng chứng. Không suy ra chi tiết nội bộ classifier hoặc sửa prediction.
+
+Mặc định `use_carrier_references=false` giữ luồng đọc ảnh độc lập trước đây, không
+bắt buộc bộ mẫu. Chế độ đối chiếu thiếu bộ mẫu sẽ báo lỗi, không tự quay về đoán
+từ nhãn/kích thước. Dùng lại cấu hình folder/endpoints của 14a; sau khi cập nhật
+code câu 13 chỉ cần restart LangGraph để nhận schema tool và prompt mới.

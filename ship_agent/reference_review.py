@@ -22,8 +22,14 @@ def reference_review_content(target: bytes, library):
 class ReferenceEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reference_id: str = Field(pattern=r"^[a-f0-9]{32}$")
-    similarities: list[str] = Field(min_length=1, max_length=10)
+    similarities: list[str] = Field(default_factory=list, max_length=10)
     differences: list[str] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def has_comparison(self):
+        if not any(text.strip() for text in self.similarities + self.differences):
+            raise ValueError("A reference citation needs an observed similarity or difference.")
+        return self
 
 
 class CarrierReferenceReview(BaseModel):
