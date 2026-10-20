@@ -6,15 +6,11 @@ from urllib.parse import urlsplit
 
 
 # Observation times in Telegram captions are UTC.
-# Temporary TEST_APPLE dataset; restore the MID paths below after the UI test.
-# TELEGRAM_METADATA_PATH = Path("/data2/DATA/telegram_data/data.json")
-# TELEGRAM_IMAGE_ROOT = Path("/data2/DATA/telegram_data/images")
-TELEGRAM_METADATA_PATH = Path(__file__).resolve().parents[1] / "tests/fixtures/apple_review/metadata.json"
-TELEGRAM_IMAGE_ROOT = Path(__file__).resolve().parents[1] / "data/test"
+TELEGRAM_METADATA_PATH = Path("/data2/DATA/telegram_data/data.json")
+TELEGRAM_IMAGE_ROOT = Path("/data2/DATA/telegram_data/images")
 
 # Set to the JSON file containing the exported predictions array.
-# PREDICTIONS_PATH = "data/predictions.json"
-PREDICTIONS_PATH = Path(__file__).resolve().parents[1] / "tests/fixtures/apple_review/predictions.json"
+PREDICTIONS_PATH = "data/predictions.json"
 
 # URL reachable by the image viewer. Match the Uvicorn port to this URL.
 DATA_API_BASE_URL = "http://127.0.0.1:8001"
