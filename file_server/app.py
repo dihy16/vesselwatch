@@ -63,7 +63,7 @@ def create_app(settings: DataSettings | None = None) -> FastAPI:
         return ObservationPage(total=len(matches), limit=limit, offset=offset,
                                observations=matches[offset:offset + limit])
 
-    @app.get("/ships/{ship_id}", response_model=Observation)
+    @app.get("/ships/{ship_id:path}", response_model=Observation)
     def ship(ship_id: str, request: Request, observation_id: str | None = None):
         store = request.app.state.store
         observation = store.ships.get(ship_id)

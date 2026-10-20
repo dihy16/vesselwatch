@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from file_server.chat_areas import AreaConflict, ChatAreaStore
 from file_server.spatial import AREA_NAMES, predefined_geometry
+from file_server.map_bundle import bundle_modules, load_bundle
 
 
 def inject_chat_controls(html):
@@ -25,7 +26,7 @@ def inject_chat_controls(html):
     return html.replace(marker, script + "\n      ChatAreaControls.attach({ map, L, document });\n" + marker)
 
 
-def make_session_handler(base_handler, store):
+def make_session_handler(base_handler, store, dataset_info=None):
     """Extend the original local demo handler without changing its exported files."""
     class Handler(base_handler):
         def _send_json(self, status, data):
@@ -85,6 +86,9 @@ def make_session_handler(base_handler, store):
                 self._send_json(500, {"detail": "Chưa đọc/ghi được file vùng chat."})
 
         def do_GET(self):
+            if urlsplit(self.path).path == "/dataset-info" and dataset_info is not None:
+                self._send_json(200, dataset_info)
+                return
             if urlsplit(self.path).path.startswith(("/map-sessions", "/query-areas/")):
                 self._handle_session()
             else:
@@ -114,16 +118,13 @@ def main():
     bundle = args.demo_dir.expanduser().resolve()
     if not (bundle / "demo/vessel_demo_api.py").is_file():
         parser.error(f"Missing exported demo at {bundle}; set --demo-dir to the extracted bundle root.")
-    sys.path.insert(0, str(bundle))
-    from demo.pack_vessel_map import build_html
-    from demo.vessel_demo_api import VesselDemoStore, make_handler
-    from demo.demo_config import configured_classifier_base_url, configured_manifest, configured_saved_run
-
-    manifest = configured_manifest()
-    saved_run, seed = configured_saved_run()
-    html = inject_chat_controls(build_html(manifest, classifier_base_url=configured_classifier_base_url()))
-    data = VesselDemoStore(manifest, html, saved_run_dir=saved_run, saved_run_seed=seed)
-    handler = make_session_handler(make_handler(data), ChatAreaStore(args.session_dir))
+    config, api, packer = bundle_modules(bundle)
+    data, provenance = load_bundle(bundle)
+    html = packer.build_html(data.manifest_path, classifier_base_url=config.configured_classifier_base_url(
+        bundle / "demo/local_config.json"))
+    data.html = inject_chat_controls(html).encode("utf-8")
+    handler = make_session_handler(api.make_handler(data), ChatAreaStore(args.session_dir),
+                                   {**provenance, "observation_count": len(data.sources)})
     with ThreadingHTTPServer(("127.0.0.1", args.port), handler) as server:
         print(f"Vessel map: http://127.0.0.1:{server.server_port}/demo/vessel_map.html", flush=True)
         print(f"Observations: {len(data.sources)}; chat-area JSON: {args.session_dir.resolve()}", flush=True)

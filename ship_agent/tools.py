@@ -150,8 +150,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
                 continue
             if classification is not None and observation["classification"] != classification:
                 continue
-            if any((minimum is not None and observation[field] < minimum) or
-                   (maximum is not None and observation[field] > maximum)
+            if any((minimum is not None and (observation[field] is None or observation[field] < minimum)) or
+                   (maximum is not None and (observation[field] is None or observation[field] > maximum))
                    for minimum, maximum, field in [(min_length_m, max_length_m, "length_m"), (min_width_m, max_width_m, "width_m")]):
                 continue
             matches.append(observation)

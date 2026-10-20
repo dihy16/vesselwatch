@@ -3,9 +3,15 @@
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
+import math
 
 
-# Observation times in Telegram captions are UTC.
+# Read the same local_config.json, manifest, and saved run as the persistent map.
+DATA_SOURCE = "map_bundle"  # Set to "telegram" to use the legacy paths below.
+MAP_DEMO_DIR = Path(__file__).resolve().parents[1] / "data/exports/vessel-map-demo"
+MAP_CARRIER_THRESHOLD = 0.5  # Same as the map's default 50% candidate threshold.
+
+# Legacy Telegram configuration (used only when DATA_SOURCE == "telegram").
 TELEGRAM_METADATA_PATH = Path("/data2/DATA/telegram_data/data.json")
 TELEGRAM_IMAGE_ROOT = Path("/data2/DATA/telegram_data/images")
 
@@ -25,8 +31,19 @@ class DataSettings:
     image_root: Path
     predictions_path: Path
     base_url: str = "http://127.0.0.1:8001"
+    data_source: str = "telegram"
+    map_demo_dir: Path | None = None
+    carrier_threshold: float = 0.5
 
     def __post_init__(self):
+        if self.data_source not in {"telegram", "map_bundle"}:
+            raise ValueError("DATA_SOURCE must be telegram or map_bundle.")
+        if (type(self.carrier_threshold) not in (int, float)
+                or not math.isfinite(self.carrier_threshold)
+                or not 0 <= self.carrier_threshold <= 1):
+            raise ValueError("MAP_CARRIER_THRESHOLD must be between 0 and 1.")
+        if self.data_source == "map_bundle" and self.map_demo_dir is None:
+            raise ValueError("Set MAP_DEMO_DIR in file_server/config.py.")
         url = urlsplit(self.base_url)
         if (url.scheme not in {"http", "https"} or not url.hostname
                 or url.username or url.password or url.query or url.fragment):
@@ -40,8 +57,15 @@ class DataSettings:
             return Path(value).expanduser().resolve()
 
         return cls(
-            telegram_path=required_path("TELEGRAM_METADATA_PATH", TELEGRAM_METADATA_PATH),
-            image_root=required_path("TELEGRAM_IMAGE_ROOT", TELEGRAM_IMAGE_ROOT),
-            predictions_path=required_path("PREDICTIONS_PATH", PREDICTIONS_PATH),
+            telegram_path=(required_path("TELEGRAM_METADATA_PATH", TELEGRAM_METADATA_PATH)
+                           if DATA_SOURCE == "telegram" else Path()),
+            image_root=(required_path("TELEGRAM_IMAGE_ROOT", TELEGRAM_IMAGE_ROOT)
+                        if DATA_SOURCE == "telegram" else Path()),
+            predictions_path=(required_path("PREDICTIONS_PATH", PREDICTIONS_PATH)
+                              if DATA_SOURCE == "telegram" else Path()),
             base_url=DATA_API_BASE_URL.rstrip("/"),
+            data_source=DATA_SOURCE,
+            map_demo_dir=(required_path("MAP_DEMO_DIR", MAP_DEMO_DIR)
+                          if DATA_SOURCE == "map_bundle" else None),
+            carrier_threshold=MAP_CARRIER_THRESHOLD,
         )

@@ -1,4 +1,4 @@
-"""Join Telegram observations and exported predictions by image filename."""
+"""Load map-bundle or Telegram observations for the shared data API."""
 
 from dataclasses import dataclass
 import hashlib
@@ -9,15 +9,21 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .caption import SHIP_PATTERN, clean_caption, parse_caption
 from .config import DataSettings
 
 
 class Position(BaseModel):
-    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
-    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+    latitude: float | None = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float | None = Field(ge=-180, le=180, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def paired_coordinates(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Both coordinates must be present or unavailable.")
+        return self
 
 
 class ImageInfo(BaseModel):
@@ -34,8 +40,8 @@ class Observation(BaseModel):
     ship_url: str
     observed_date: str
     observed_at: str
-    length_m: float = Field(gt=0)
-    width_m: float = Field(gt=0)
+    length_m: float | None = Field(gt=0)
+    width_m: float | None = Field(gt=0)
     position: Position
     classification: Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"]
     confidence: float | None = Field(ge=0, le=1)
@@ -98,7 +104,7 @@ def load_predictions(path: Path) -> tuple[dict[str, Prediction], dict]:
 
 
 def registered_image(root: Path, name: str) -> Path | None:
-    """Resolve only an image filename inside the configured image directory."""
+    """Resolve a crop path only inside the configured image directory."""
     candidate = (root / name).resolve()
     if not candidate.is_relative_to(root) or not candidate.is_file():
         return None
@@ -115,6 +121,9 @@ class ObservationStore:
 
 
 def load_store(settings: DataSettings) -> ObservationStore:
+    if settings.data_source == "map_bundle":
+        from .map_loader import load_map_store
+        return load_map_store(settings)
     predictions, prediction_metadata = load_predictions(settings.predictions_path)
     root = settings.image_root.resolve()
     if not root.is_dir():

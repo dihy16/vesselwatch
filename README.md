@@ -8,6 +8,10 @@ cho mỗi user/chat từ JSON. Chạy server map bằng
 `scripts/aircraft_carrier_pipe.py` và cấu hình `MAP_URL`/`MAP_API_URL` trong Valves.
 Xem [hướng dẫn liên kết vùng với cuộc chat](docs/chat_area_sessions.md) để chạy trên
 MID, cấu hình URL và thử vẽ → xác nhận → hỏi về vùng trong cùng cuộc chat.
+File server mặc định dùng cùng manifest và saved predictions trong
+`data/exports/vessel-map-demo` với map; restart map, file server và LangGraph sau
+khi đổi dữ liệu. `/dataset-info` trên map và `/health` trên file server cung cấp
+`map_snapshot_id` để kiểm tra hai bên đang đọc cùng snapshot.
 
 ## Thử đọc ảnh bằng AI
 
@@ -110,13 +114,22 @@ python -m pip install -r requirements.txt
 
 | Biến | Nội dung |
 | --- | --- |
-| `TELEGRAM_METADATA_PATH` | JSON array Telegram, có `message_id`, `date`, `caption`, `image` |
-| `TELEGRAM_IMAGE_ROOT` | Thư mục chứa ảnh, ví dụ `/data2/DATA/telegram_data/images` |
-| `PREDICTIONS_PATH` | Đường dẫn file JSON export chứa mảng `predictions` |
+| `DATA_SOURCE` | Mặc định `map_bundle`; đặt `telegram` để đọc nguồn Telegram cũ |
+| `MAP_DEMO_DIR` | Bundle map đã extract, mặc định `data/exports/vessel-map-demo` trong repo |
+| `MAP_CARRIER_THRESHOLD` | Ngưỡng score cho nhãn nghi là tàu sân bay, mặc định `0.5` |
+| `TELEGRAM_METADATA_PATH` | Chế độ Telegram: JSON array có `message_id`, `date`, `caption`, `image` |
+| `TELEGRAM_IMAGE_ROOT` | Chế độ Telegram: thư mục ảnh, ví dụ `/data2/DATA/telegram_data/images` |
+| `PREDICTIONS_PATH` | Chế độ Telegram: file JSON export chứa mảng `predictions` |
 | `DATA_API_BASE_URL` | URL gốc cho `ship_url` và URL ảnh, mặc định `http://127.0.0.1:8001` |
 
-Điền `PREDICTIONS_PATH` trong file cấu hình trước khi chạy; mặc định để trống và server
-báo lỗi nếu chưa điền. Server dữ liệu không đọc `.env` hoặc biến môi trường để cấu hình.
+Chế độ map đọc trực tiếp `demo/local_config.json`, manifest và saved run giống map,
+giữ mọi crop, kể cả ảnh chưa có prediction hoặc vị trí. Xem
+[cách kiểm tra snapshot và ngưỡng lọc](docs/chat_area_sessions.md#nguồn-dữ-liệu-và-hiển-thị).
+Không tự chuyển về Telegram nếu bundle bị thiếu.
+
+Các hướng dẫn file predictions dưới đây dành cho `DATA_SOURCE = "telegram"`.
+Điền `PREDICTIONS_PATH` trước khi chạy chế độ này. Server dữ liệu không đọc `.env`
+hoặc biến môi trường để cấu hình.
 Các đường dẫn phải là đường dẫn thực trên MID. Không cần checkpoint, GPU hoặc API key
 để chạy server dữ liệu. Server đọc trực tiếp file export; các đường dẫn checkpoint và
 `report_path` trong `runs` chỉ là thông tin nguồn, không được mở. Không cần manifest

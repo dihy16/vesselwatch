@@ -64,8 +64,8 @@ def select_records(snapshot: dict, filters: MapFilters) -> list[dict]:
             continue
         if filters.classification is not None and row["classification"] != filters.classification:
             continue
-        if any((getattr(filters, "min_" + key) is not None and row[key] < getattr(filters, "min_" + key))
-               or (getattr(filters, "max_" + key) is not None and row[key] > getattr(filters, "max_" + key))
+        if any((getattr(filters, "min_" + key) is not None and (row[key] is None or row[key] < getattr(filters, "min_" + key)))
+               or (getattr(filters, "max_" + key) is not None and (row[key] is None or row[key] > getattr(filters, "max_" + key)))
                for key in ("length_m", "width_m")):
             continue
         selected.append(row)
@@ -81,6 +81,7 @@ def save_map(snapshot: dict, filters: MapFilters) -> dict:
         vessels.append({
             "id": row["observation_id"], "name": row["ship_id"],
             "captured_at": row["observed_at"], **row["position"],
+            "position_status": "unavailable" if row["position"]["latitude"] is None else "available",
             "image_path": f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}",
             "prediction": {"carrier_score": row["confidence"],
                            "model": snapshot.get("source", {}).get("model", "Saved model")},

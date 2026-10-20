@@ -82,7 +82,7 @@ def build_agent(
     llm_with_tools = model.bind_tools(tools)
     source_note = ("Chế độ mock: mọi quan sát, vị trí, phân loại và URL đều là dữ liệu giả lập."
                    if data_source == "mock" else
-                   "Tools đọc dữ liệu thật từ file server. Mỗi ảnh Telegram là một tàu riêng; "
+                   "Tools đọc dữ liệu thật từ file server. Mỗi ảnh là một lượt quan sát riêng; "
                    "không suy ra danh tính cùng tàu qua nhiều ảnh.")
     if data_source == "demo":
         source_note = ("Tools cung cấp ảnh vệ tinh, thông tin quan sát và kết quả phân loại. "
@@ -110,7 +110,8 @@ def build_agent(
     confidence_note = ("Với danh sách tàu, đưa ship_url và độ tin cậy nếu có."
                        if data_source == "mock" else
                        "Với danh sách tàu, đưa ship_url và carrier score nếu có. confidence là score "
-                       "tàu sân bay, không phải độ tin cậy của nhãn âm. File server chỉ trả ảnh có prediction.")
+                       "tàu sân bay, không phải độ tin cậy của nhãn âm. Nhãn unknown là chưa có prediction; "
+                       "vị trí hoặc kích thước null là thiếu dữ liệu, không suy đoán giá trị.")
     map_note = ("Khi yêu cầu bản đồ/map, dùng create_vessel_map với khoảng ngày và đúng bộ lọc người dùng yêu cầu. "
                 "Nếu chưa có khoảng ngày từ câu hỏi hoặc ngữ cảnh, hỏi người dùng để xác định khoảng ngày. "
                 "Tool trả URL và tổng lượt quan sát; hệ thống tự đính kèm iframe HTML Artifacts. "

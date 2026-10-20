@@ -143,14 +143,15 @@ def query_observations(observations, query, geometry=None):
                 or (query.ship_id and row["ship_id"] != query.ship_id)
                 or (query.classification and row["classification"] != query.classification)):
             continue
-        if query.length_gt_m is not None and row["length_m"] <= query.length_gt_m:
+        if query.length_gt_m is not None and (row["length_m"] is None or row["length_m"] <= query.length_gt_m):
             continue
-        if any((getattr(query, "min_" + field) is not None and row[field] < getattr(query, "min_" + field))
-               or (getattr(query, "max_" + field) is not None and row[field] > getattr(query, "max_" + field))
+        if any((getattr(query, "min_" + field) is not None and (row[field] is None or row[field] < getattr(query, "min_" + field)))
+               or (getattr(query, "max_" + field) is not None and (row[field] is None or row[field] > getattr(query, "max_" + field)))
                for field in ("length_m", "width_m")):
             continue
         position = row["position"]
-        if geometry and not geometry.covers(position["longitude"], position["latitude"]):
+        if geometry and (position["longitude"] is None or position["latitude"] is None
+                         or not geometry.covers(position["longitude"], position["latitude"])):
             continue
         identity = row["observation_id"]
         if identity not in found or row["observed_at"] > found[identity]["observed_at"]:

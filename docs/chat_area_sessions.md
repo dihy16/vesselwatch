@@ -116,11 +116,43 @@ server map này ra Internet công khai.
 
 ## Nguồn dữ liệu và hiển thị
 
-Map vẫn hiển thị bundle 5.230 observations. **Số liệu agent lấy từ nguồn đang cấu
-hình cho graph**, qua spatial API hiện có. Liên kết vùng không tự đổi nguồn agent
-sang manifest map. Đối chiếu hai nguồn nếu cần số liệu khớp đúng bộ observations
-đang xem. Đơn vị vẫn là lượt phát hiện theo observation_id, không phải số tàu vật
-lý duy nhất qua nhiều ngày.
+File server port 8001 mặc định đọc **cùng bundle với map**, qua
+`DATA_SOURCE = "map_bundle"` và `MAP_DEMO_DIR` trong `file_server/config.py`.
+Đường dẫn mặc định là `data/exports/vessel-map-demo` tính từ repo. Cả hai đọc
+`demo/local_config.json` để lấy manifest, saved run và seed; không dùng
+`data/predictions.json` hay Telegram metadata trong chế độ này. Nếu dùng
+`--demo-dir` khác cho map, đặt `MAP_DEMO_DIR` trùng thư mục đó.
+
+Sau khi pull, restart **map 8000, file server 8001, rồi LangGraph 2024**.
+Không cần thay code Function hoặc Valves cho lần đổi nguồn dữ liệu này.
+Kiểm tra hai snapshot trên MID:
+
+```bash
+python3 - <<'PY'
+import json
+from urllib.request import urlopen
+with urlopen("http://127.0.0.1:8000/dataset-info") as r:
+    map_info = json.load(r)
+with urlopen("http://127.0.0.1:8001/health") as r:
+    api_info = json.load(r)
+assert map_info["map_snapshot_id"] == api_info["map_snapshot_id"], "Different map/agent snapshots"
+assert map_info["observation_count"] == api_info["observation_count"]
+print("Same snapshot:", api_info["observation_count"], "observations")
+print("Saved run:", api_info["runs"], "seed:", api_info["saved_run_seed"])
+print("Predictions:", api_info["prediction_count"], "unknown:", api_info["unknown_count"])
+print("Carrier threshold:", api_info["carrier_threshold"])
+PY
+```
+
+Nhãn `aircraft_carrier` dùng score ≥ `MAP_CARRIER_THRESHOLD` (mặc định 0.5),
+bằng ngưỡng 50% mặc định trên map. Ảnh thiếu prediction được giữ với nhãn
+`unknown`, không dùng nhãn ground truth để thay kết quả mô hình. Ảnh thiếu vị trí
+vẫn có trong danh sách toàn bộ nhưng không được tính trong polygon; thiếu kích
+thước thì không khớp bộ lọc kích thước. Đơn vị là lượt phát hiện theo ID crop.
+
+Ngày, ngưỡng slider và bộ lọc trên giao diện map **chưa tự truyền vào câu hỏi
+agent**. Để đối chiếu kết quả, chọn cùng khoảng ngày và dùng ngưỡng 50% trên map.
+Đổi nguồn file server về Telegram bằng `DATA_SOURCE = "telegram"` nếu cần.
 
 Pipe chỉ trả Artifact khi yêu cầu mở map. Tool không đính kèm thêm map cho câu hỏi
 tiếp nối. Đóng/mở panel, thêm artifact khác hoặc F5 vẫn phụ thuộc Open WebUI.

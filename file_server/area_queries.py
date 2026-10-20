@@ -156,6 +156,7 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         filters["observed_to"] = query.observed_to or max(dates, default=date.today().isoformat())
         vessels = [{"id": r["observation_id"], "name": r["ship_id"], **r["position"],
                     "captured_at": r["observed_at"],
+                    "position_status": "unavailable" if r["position"]["latitude"] is None else "available",
                     "image_path": r["images"][0]["url"] if r["images"] else "",
                     "prediction": {"carrier_score": r["confidence"]},
                     "metadata": {"source_id": r["ship_id"], "length_m": r["length_m"],
