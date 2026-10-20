@@ -121,3 +121,31 @@ Mặc định `use_carrier_references=false` giữ luồng đọc ảnh độc l
 bắt buộc bộ mẫu. Chế độ đối chiếu thiếu bộ mẫu sẽ báo lỗi, không tự quay về đoán
 từ nhãn/kích thước. Dùng lại cấu hình folder/endpoints của 14a; sau khi cập nhật
 code câu 13 chỉ cần restart LangGraph để nhận schema tool và prompt mới.
+
+## Câu 15: đối chiếu hai observation khác nhãn với bộ mẫu
+
+Agent dùng `analyze_ship_observations(analysis="similar_dimensions")` của câu 12
+để tìm một cặp khác nhãn nếu chưa có hai observation cụ thể. Mặc định cả chiều
+dài và rộng chênh không quá 10%, tính bằng `100 * abs(a-b) / max(a,b)`; có thể
+thay bằng mức sai lệch người dùng yêu cầu. Giữ bộ lọc ngày/vùng của câu hỏi.
+
+Sau đó gọi `review_ship_images` với `observation_id`, `comparison_observation_id`,
+`use_carrier_references=true` và cùng `similarity_tolerance_pct`. Tool kiểm tra
+hai ID khác nhau, nhãn đối lập và đủ số đo phù hợp trước khi đọc ảnh. Bộ mẫu
+được tải một lần; mỗi ảnh được đối chiếu riêng với **cùng mô tả và toàn bộ ảnh
+mẫu**, dùng lại luồng câu 13. Không áp bộ lọc score/chiều dài của 14a.
+
+Kết quả giữ ảnh, số đo, nhãn/score và bằng chứng đối chiếu của từng observation.
+Chỉ nêu đặc điểm có thể liên quan đến khác biệt nhãn khi hai đánh giá ảnh có
+bằng chứng phù hợp với hai nhãn đã lưu (`can_explain_label_difference=true`).
+Nếu ảnh mờ, cả hai đánh giá giống nhau hoặc đánh giá trái với nhãn gốc thì báo
+chưa giải thích được khác biệt nhãn bằng bằng chứng hiện có. Lỗi đọc một ảnh
+hoặc thiếu bộ mẫu là lỗi rõ ràng, không tạo ví dụ thay thế từ metadata.
+
+Không suy ra nguyên nhân nội bộ classifier, không xác nhận hai observation là
+cùng một tàu, không sửa prediction và không tạo flag từ chế độ so sánh cặp.
+Ví dụ: “Trong vùng vừa vẽ, năm 2025, cho một ví dụ hai tàu kích thước tương đồng
+nhưng khác nhãn; đối chiếu từng ảnh với bộ mẫu để phân tích.”
+
+Dùng lại folder/API bộ mẫu hiện có. Sau khi pull code câu 15, restart LangGraph;
+không cần đổi Pipe hoặc cấu hình map.

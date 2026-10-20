@@ -27,7 +27,7 @@
 - [x] 13. Dựa trên ảnh vệ tinh, kích thước và kết quả phân loại, những bằng chứng nào ủng hộ hoặc mâu thuẫn với nhận định SHIP_001 là tàu sân bay?
 - [ ] 14. Có những trường hợp nào mô hình nhận dạng với độ tin cậy cao nhưng đặc điểm của tàu lại không phù hợp với kết quả dự đoán? Hãy phân tích các trường hợp đó.
 - [x] 14a. Trong khoảng ngày bắt buộc và khu vực tùy chọn, lọc nhãn không phải tàu sân bay với score ≤0,01 và chiều dài ≥250 m; đối chiếu từng ảnh với mô tả và toàn bộ ảnh mẫu tàu sân bay, chỉ flag ảnh đủ rõ có bằng chứng phù hợp với tàu sân bay.
-- [ ] 15. Hai tàu có kích thước tương đương nhưng được phân loại khác nhau. Những đặc điểm nào có thể giải thích sự khác biệt này? Hãy đưa ra ví dụ cụ thể.
+- [x] 15. Hai tàu có kích thước tương đương nhưng được phân loại khác nhau. Những đặc điểm nào có thể giải thích sự khác biệt này? Hãy đưa ra ví dụ cụ thể.
 - [ ] 16. Trong các ảnh được phân loại là tàu sân bay, có những trường hợp nào có dấu hiệu giống tàu hàng hoặc tàu container cỡ lớn? Hãy phân tích các dấu hiệu đó.
 
 ## Level 5 — Điều tra đa bước và tổng hợp

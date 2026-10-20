@@ -13,13 +13,14 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import ToolException, tool
 from langchain_openai import ChatOpenAI
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import config
 from file_server.image_assets import normalize_image
 from .reference_review import CarrierReferenceReview, reference_review_content, reference_review_result
 from .carrier_reference_client import load_carrier_references
 from .observation_evidence import build_observation_evidence
+from .pair_evidence import build_pair_evidence, validate_observation_pair
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
@@ -30,6 +31,19 @@ class ReviewImageInput(BaseModel):
     observation_id: str = Field(min_length=1, description="observation_id chính xác từ search_ships hoặc query_ships_in_area.")
     use_carrier_references: bool = Field(default=False,
         description="True để đối chiếu một observation bất kỳ với toàn bộ bộ mẫu và tổng hợp bằng chứng (BR 13).")
+    comparison_observation_id: str | None = Field(default=None, min_length=1,
+        description="ID observation thứ hai của cặp khác nhãn, kích thước tương đồng (BR 15); cần use_carrier_references=true.")
+    similarity_tolerance_pct: float = Field(default=10, ge=0, le=100,
+        description="Sai lệch tối đa CẢ dài và rộng cho cặp, cùng quy tắc câu 12; mặc định 10%.")
+
+    @model_validator(mode="after")
+    def reference_pair_mode(self):
+        if self.comparison_observation_id is not None:
+            if not self.use_carrier_references:
+                raise ValueError("So sánh cặp cần use_carrier_references=true.")
+            if self.observation_id == self.comparison_observation_id:
+                raise ValueError("Cần hai observation_id khác nhau.")
+        return self
 
 
 class VisualReview(BaseModel):
@@ -146,7 +160,8 @@ Chỉ trả một JSON object theo schema sau, không Markdown:
 
 def create_image_review_tool(observations, *, data_source):
     @tool(args_schema=ReviewImageInput)
-    def review_ship_images(observation_id: str, use_carrier_references: bool = False) -> dict:
+    def review_ship_images(observation_id: str, use_carrier_references: bool = False,
+                          comparison_observation_id: str | None = None, similarity_tolerance_pct: float = 10) -> dict:
         """Đọc nội dung ảnh thật để đánh giá bổ sung một lượt phát hiện tàu.
 
         Dùng khi yêu cầu phân tích ảnh, kiểm tra lại nhận dạng hoặc so sánh đặc điểm nhìn thấy.
@@ -159,16 +174,37 @@ def create_image_review_tool(observations, *, data_source):
         supporting_evidence/contradicting_evidence/unresolved, metadata kích thước
         và prediction. Không lọc theo nhãn, score, kích thước hoặc ngày của 14a.
         Mặc định false giữ đánh giá ảnh độc lập thông thường không cần bộ mẫu.
+        Câu 15: thêm comparison_observation_id từ cặp similar_dimensions của câu 12,
+        use_carrier_references=true và cùng similarity_tolerance_pct (mặc định 10%).
+        Đọc riêng từng ảnh với CÙNG toàn bộ bộ mẫu, trả bằng chứng của cả hai ảnh.
+        Không dùng bộ lọc 14a; không khẳng định hai ảnh là cùng một tàu hoặc biết
+        nguyên nhân nội bộ classifier. Ảnh mờ/lỗi không tạo lời giải thích khác nhãn.
         """
         observation = next((row for row in observations if row["observation_id"] == observation_id), None)
         if observation is None:
             raise ToolException("Không tìm thấy observation_id; lấy ID chính xác từ tool truy vấn.")
+        second = None
+        if comparison_observation_id is not None:
+            second = next((row for row in observations if row["observation_id"] == comparison_observation_id), None)
+            if second is None:
+                raise ToolException("Không tìm thấy comparison_observation_id; lấy ID chính xác từ cặp kết quả.")
+            try:
+                validate_observation_pair(observation, second, similarity_tolerance_pct)
+            except ValueError as exc:
+                raise ToolException(str(exc)) from exc
         if use_carrier_references:
             try:
                 library = load_carrier_references()
             except (httpx.HTTPError, OSError, ValueError) as exc:
                 raise ToolException("Chưa tải đủ bộ mẫu; kiểm tra CARRIER_REFERENCE_DIR, description.md và toàn bộ ảnh mẫu.") from exc
             reviewed = review_image_against_references(observation, library, data_source=data_source)
+            if second is not None:
+                second_reviewed = review_image_against_references(second, library, data_source=data_source)
+                try:
+                    return build_pair_evidence(observation, second, reviewed, second_reviewed,
+                                               library, similarity_tolerance_pct)
+                except ValueError as exc:
+                    raise ToolException("Bằng chứng cặp ảnh không khớp observations hoặc cùng bộ mẫu; chưa so sánh được.") from exc
             try:
                 return build_observation_evidence(observation, reviewed, library)
             except ValueError as exc:

@@ -160,6 +160,19 @@ Sai lệch mặc định 10% cho CẢ chiều dài và rộng, mẫu số là k�
 dùng similarity_tolerance_pct khác nếu người dùng chỉ định. Trả ví dụ theo cặp,
 kèm kích thước và nhãn của hai observations; nêu total là số cặp, không phải
 số tàu duy nhất, không khẳng định hai observations thuộc cùng một tàu.
+Khi hỏi ví dụ hai observations có kích thước tương đương nhưng khác nhãn và các
+đặc điểm có thể giải thích khác biệt, trước tiên tìm cặp bằng analyze_ship_observations
+analysis="similar_dimensions" nếu chưa có đúng hai observation_id. Dùng limit=1
+cho một ví dụ, hoặc số ví dụ người dùng yêu cầu; giữ đúng vùng/ngày đã yêu cầu.
+Sau đó gọi review_ship_images với observation_id và comparison_observation_id
+của cặp, use_carrier_references=true và cùng similarity_tolerance_pct. Tool đọc
+từng ảnh với cùng toàn bộ bộ mẫu; không lấy prediction hoặc kích thước làm bằng
+chứng thay ảnh. Trình bày song song ảnh, số đo, nhãn/score và bằng chứng đối chiếu.
+Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_explain_label_difference=true;
+đây không phải giải thích nội bộ classifier. Nếu cả hai ảnh được đánh giá giống nhau,
+đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
+bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
+Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
 Khi yêu cầu tìm tàu sân bay bị bỏ sót hoặc kiểm tra nhãn âm tự tin cao, dùng
 investigate_missed_carriers nếu có tool này. Khoảng ngày là bắt buộc; nếu chưa có
 ngày trong câu hỏi/ngữ cảnh thì hỏi người dùng, không tự chọn toàn bộ thời gian.
