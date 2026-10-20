@@ -106,3 +106,19 @@ def test_analysis_routes_and_strict_score_filter(area_app):
         assert client.post("/observation-analyses", json={"analysis": "similar_dimensions",
             "classification": "aircraft_carrier"}).status_code == 422
         assert client.post("/area-queries", json={"carrier_score_gt": 1.1}).status_code == 422
+
+
+def test_missed_candidates_require_dates_and_preserve_inclusive_gates(area_app):
+    app, rows = area_app
+    for row in rows:
+        row.update(classification="not_aircraft_carrier", confidence=.01)
+    with TestClient(app) as client:
+        assert client.post("/missed-carrier-candidates", json={}).status_code == 422
+        payload = {"observed_from": "2026-10-01", "observed_to": "2026-10-01", "polygon": SQUARE, "limit": 1}
+        result = client.post("/missed-carrier-candidates", json=payload).json()
+        assert result["total"] == 4 and len(result["ships"]) == 1
+        assert result["filters"]["carrier_score_lte"] == .01
+        assert result["source_snapshot_id"]
+        payload.pop("polygon")
+        assert client.post("/missed-carrier-candidates", json=payload).json()["total"] == 5
+        assert client.post("/missed-carrier-candidates", json={**payload, "area_name": "Hoàng Sa"}).json()["status"] == "needs_drawing"

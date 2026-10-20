@@ -21,6 +21,23 @@
 - [ ] 11. Những tàu nào có kết quả nhận dạng khác nhau giữa các ảnh vệ tinh?
 - [x] 12. Những trường hợp nào có kích thước tương đồng nhưng kết quả phân loại khác nhau?
 
+
+## Level 4 — Phân tích và suy luận dựa trên bằng chứng
+
+- [ ] 13. Dựa trên ảnh vệ tinh, kích thước và kết quả phân loại, những bằng chứng nào ủng hộ hoặc mâu thuẫn với nhận định SHIP_001 là tàu sân bay?
+- [ ] 14. Có những trường hợp nào mô hình nhận dạng với độ tin cậy cao nhưng đặc điểm của tàu lại không phù hợp với kết quả dự đoán? Hãy phân tích các trường hợp đó.
+- [x] 14a. Trong khoảng ngày bắt buộc và khu vực tùy chọn, lọc nhãn không phải tàu sân bay với score ≤0,01 và chiều dài ≥250 m; đối chiếu từng ảnh với mô tả và toàn bộ ảnh mẫu tàu sân bay, chỉ flag ảnh đủ rõ có bằng chứng phù hợp với tàu sân bay.
+- [ ] 15. Hai tàu có kích thước tương đương nhưng được phân loại khác nhau. Những đặc điểm nào có thể giải thích sự khác biệt này? Hãy đưa ra ví dụ cụ thể.
+- [ ] 16. Trong các ảnh được phân loại là tàu sân bay, có những trường hợp nào có dấu hiệu giống tàu hàng hoặc tàu container cỡ lớn? Hãy phân tích các dấu hiệu đó.
+
+## Level 5 — Điều tra đa bước và tổng hợp
+
+- [ ] 17. Hãy điều tra các trường hợp phát hiện tàu nghi là tàu sân bay trong khu vực X trong 30 ngày qua, đối chiếu ảnh vệ tinh, kích thước và kết quả nhận dạng để xác định những trường hợp cần ưu tiên kiểm tra thủ công.
+- [ ] 18. Hãy xác định những khu vực có nhiều lượt phát hiện tàu nghi là tàu sân bay trong 30 ngày qua. Phân tích phân bố theo vị trí, thời gian, kích thước và độ tin cậy, sau đó chọn các trường hợp đáng chú ý để kiểm tra chi tiết.
+- [ ] 19. Hãy điều tra các trường hợp mô hình nhận dạng chưa chắc chắn trong khu vực X: tìm các trường hợp tiêu biểu, phân tích nguyên nhân có thể xảy ra, thống kê theo nhóm và đề xuất những trường hợp cần bổ sung nhãn.
+- [ ] 20. Hãy lập báo cáo giám sát tàu khả nghi tại khu vực X trong 30 ngày qua: thống kê lượt phát hiện theo thời gian, kích thước và kết quả phân loại; xác định các xu hướng hoặc bất thường đáng chú ý; kiểm tra những trường hợp liên quan và tổng hợp nhận định kèm bằng chứng.
+
+Tests:
 ## Level 4 — Phân tích và suy luận
 
 - [ ] 13. Vì sao tàu SHIP_001 được nhận dạng là tàu sân bay?

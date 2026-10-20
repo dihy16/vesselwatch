@@ -362,6 +362,9 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
     if not is_mock:
         from .image_review import create_image_review_tool
         query_tools.append(create_image_review_tool(observations, data_source=data_source))
+    if data_source == "file_server":
+        from .missed_carrier_tool import create_missed_carrier_tool
+        query_tools.append(create_missed_carrier_tool())
 
     for query_tool in query_tools:
         query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"

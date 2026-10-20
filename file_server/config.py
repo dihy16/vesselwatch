@@ -24,6 +24,9 @@ DATA_API_BASE_URL = "http://127.0.0.1:8001"
 # Keep confirmed custom areas across restarts (ignored local data).
 AREA_QUERY_DIR = Path("data/area_queries/real")
 
+# User-supplied carrier description.md and example images, kept out of Git.
+CARRIER_REFERENCE_DIR = Path(__file__).resolve().parents[1] / "data/carrier_references"
+
 
 @dataclass(frozen=True)
 class DataSettings:
@@ -34,6 +37,7 @@ class DataSettings:
     data_source: str = "telegram"
     map_demo_dir: Path | None = None
     carrier_threshold: float = 0.5
+    carrier_reference_dir: Path | None = None
 
     def __post_init__(self):
         if self.data_source not in {"telegram", "map_bundle"}:
@@ -68,4 +72,5 @@ class DataSettings:
             map_demo_dir=(required_path("MAP_DEMO_DIR", MAP_DEMO_DIR)
                           if DATA_SOURCE == "map_bundle" else None),
             carrier_threshold=MAP_CARRIER_THRESHOLD,
+            carrier_reference_dir=required_path("CARRIER_REFERENCE_DIR", CARRIER_REFERENCE_DIR),
         )

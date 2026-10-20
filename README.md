@@ -1,5 +1,8 @@
 # Agent truy vấn tàu
 
+Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, score ≤0,01, dài ≥250 m):
+xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
+
 Các truy vấn kích thước, score và so sánh khác nhãn (BR 9, 10, 12):
 xem [quy tắc và ví dụ](docs/observation_queries.md).
 

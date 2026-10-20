@@ -18,6 +18,7 @@ from .spatial import (AREA_NAMES, AreaGeometry, UserPolygon, named_area,
                       predefined_geometry, query_observations)
 from .area_models import AreaQueryInput, AreaRequest, ObservationAnalysisRequest
 from .observation_analysis import analysis_filters, analyze_observations
+from .missed_carriers import MissedCarrierRequest, candidate_query, missed_carrier_candidates
 
 
 class AreaConfirmation(BaseModel):
@@ -143,6 +144,16 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
                     "area_name": area_name, "filters": query.model_dump(),
                     "message": "Vẽ rectangle/polygon trên bản đồ rồi bấm Xác nhận và hỏi agent."}
         return result_for(request, area_id, record, rows)
+
+    @app.post("/missed-carrier-candidates")
+    def missed_candidates(body: MissedCarrierRequest, request: Request):
+        area = query_area(candidate_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **missed_carrier_candidates(rows, body, geometry_for(record)),
+                "source_snapshot_id": record["snapshot_id"]}
 
     @app.post("/observation-analyses")
     def observation_analysis(body: ObservationAnalysisRequest, request: Request):

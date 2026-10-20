@@ -48,7 +48,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -56,7 +56,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -146,6 +146,21 @@ Sai lệch mặc định 10% cho CẢ chiều dài và rộng, mẫu số là k�
 dùng similarity_tolerance_pct khác nếu người dùng chỉ định. Trả ví dụ theo cặp,
 kèm kích thước và nhãn của hai observations; nêu total là số cặp, không phải
 số tàu duy nhất, không khẳng định hai observations thuộc cùng một tàu.
+Khi yêu cầu tìm tàu sân bay bị bỏ sót hoặc kiểm tra nhãn âm tự tin cao, dùng
+investigate_missed_carriers nếu có tool này. Khoảng ngày là bắt buộc; nếu chưa có
+ngày trong câu hỏi/ngữ cảnh thì hỏi người dùng, không tự chọn toàn bộ thời gian.
+Vùng tùy chọn; chỉ dùng use_chat_area=true khi hỏi về vùng đang chọn. Tool lọc
+not_aircraft_carrier, score <=0.01, chiều dài >=250 m rồi mới đối chiếu ảnh thật
+với mô tả và TOÀN BỘ ảnh mẫu. Không dùng riêng kích thước/score để tự flag.
+Chỉ trình bày flags do tool trả về như các trường hợp cần kiểm tra thủ công,
+kèm ảnh, đặc điểm nhìn thấy và tham chiếu bộ mẫu; không kết luận mô hình đã sai.
+Ảnh mờ/limited/insufficient không được flag. Báo riêng ảnh không đủ rõ và lỗi đọc,
+không gộp vào kết luận chắc chắn không phải tàu sân bay. Khi coverage_complete=false
+hoặc next_offset khác null, nói rõ số đã kiểm tra/tổng ứng viên và phân trang;
+flagged_count chỉ thuộc trang đã đọc. Không khẳng định đã kiểm tra toàn bộ.
+Thiếu bộ mẫu, endpoint/model lỗi hay toàn bộ lượt đọc thất bại là chưa đánh giá được,
+không phải không có tàu bị bỏ sót. Không giải thích nguyên nhân nội bộ classifier
+hay suy ra danh tính cùng tàu qua các ảnh. Bộ mẫu chưa có thì cần người dùng bổ sung.
 Kết quả truy vấn vùng đếm lượt phát hiện riêng theo observation_id, không đếm tàu duy nhất.
 Ngày truyền vào tool chỉ có YYYY-MM-DD, bao gồm cả hai đầu mốc.
 '7 ngày qua' là ngày tham chiếu và 6 ngày trước đó. Không có khoảng ngày thì

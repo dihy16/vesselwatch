@@ -1,0 +1,95 @@
+# Đối chiếu ảnh để tìm tàu sân bay có thể bị bỏ sót
+
+Đây là bước đã thống nhất cho Level 4: kiểm tra nhãn âm tự tin cao, không phải
+triển khai toàn bộ câu 13–16 hoặc điều tra Level 5. Mỗi crop là một lượt quan sát;
+không suy ra danh tính cùng tàu qua nhiều ảnh và không thay prediction đã lưu.
+
+## Chuẩn bị bộ mẫu trên MID
+
+Trong thư mục repo, tạo folder sau rồi đưa **mô tả và ảnh mẫu thật của bạn** vào:
+
+```bash
+mkdir -p data/carrier_references
+```
+
+```text
+data/carrier_references/
+  description.md
+  carrier-example-01.jpg
+  carrier-example-02.png
+  more-examples/
+    carrier-example-03.webp
+```
+
+`description.md` là mô tả UTF-8 do bạn cung cấp về những đặc điểm muốn đối chiếu.
+Không có mô tả hay ảnh mẫu mặc định được giả lập sẵn. Ảnh và mô tả nằm trong
+`data/` được Git ignore; `git pull` không mang bộ mẫu lên MID.
+
+Đường dẫn được cấu hình bằng `CARRIER_REFERENCE_DIR` trong `file_server/config.py`.
+Đọc tất cả ảnh hỗ trợ trong folder và folder con: PNG, JPEG, WebP, TIFF, BMP, GIF
+(frame đầu). Mỗi ảnh tối đa 10 MB/16 triệu pixel; mô tả tối đa 64 KiB. Symlink,
+ảnh hỏng hoặc ảnh vượt giới hạn làm việc nạp bộ mẫu thất bại, không bị bỏ qua âm thầm.
+Không tự lấy một phần ảnh mẫu khi đầu vào quá lớn cho vision model.
+
+## Chạy và thử
+
+Sau khi pull code, restart file server 8001 rồi LangGraph 2024. Map và Pipe hiện
+tại giữ nguyên. Vision dùng `OPENAI_VISION_MODEL`, `OPENAI_VISION_BASE_URL`,
+`OPENAI_VISION_API_KEY`, hoặc các biến `OPENAI_*` tương ứng nếu không cấu hình riêng.
+Model/endpoint cần đọc được nhiều ảnh trong một yêu cầu.
+
+Kiểm tra bộ mẫu:
+
+```bash
+curl http://127.0.0.1:8001/carrier-references
+```
+
+Thiếu mô tả/ảnh hợp lệ trả HTTP 503; không ảnh hưởng các truy vấn dữ liệu thường.
+API trả mô tả, revision, tên/ID và URL ảnh. Có thể mở URL ảnh để kiểm tra pixel đã
+đăng ký. Thay nội dung bộ mẫu được đọc lại ở lần lấy manifest tiếp theo; đổi đường
+dẫn cấu hình cần restart file server.
+
+Trong chat:
+
+> Tìm tàu sân bay có thể bị bỏ sót trong vùng vừa vẽ từ 01/01/2025 đến 31/12/2025.
+> Đọc đối chiếu 5 ảnh ứng viên đầu tiên với toàn bộ bộ mẫu.
+
+Hoặc bỏ “trong vùng vừa vẽ” để không giới hạn không gian. Thiếu khoảng ngày thì
+agent cần hỏi lại; không tự dùng toàn bộ thời gian.
+
+## Luồng xử lý
+
+1. `investigate_missed_carriers` lấy ứng viên từ `POST /missed-carrier-candidates`.
+   Server lọc toàn bộ snapshot theo ngày, polygon nếu có, nhãn
+   `not_aircraft_carrier`, **carrier score ≤0,01**, **chiều dài ≥250 m**; gồm các biên.
+   Thiếu score/chiều dài bị loại. Có polygon thì thiếu vị trí cũng bị loại.
+2. Lấy `GET /carrier-references`, rồi tải **tất cả** pixel ảnh qua
+   `GET /carrier-references/images/{reference_id}?revision=...` trên backend đã cấu hình.
+   Revision/hash phát hiện bộ mẫu bị thay đổi hoặc tải không đầy đủ. Không theo URL
+   ngoài backend; không bỏ bớt ảnh mẫu nếu một ảnh lỗi.
+3. Với mỗi ứng viên trong trang, gửi TARGET + mô tả + **toàn bộ ảnh mẫu** cho vision.
+   Cùng một bộ mẫu được dùng xuyên suốt trang. Vision không nhận score, nhãn gốc
+   hoặc kích thước đo sẵn để tránh dựa vào các giá trị đó thay vì đọc pixel.
+4. Chỉ flag khi ảnh được đánh giá đủ rõ (`sufficient`), assessment là
+   `aircraft_carrier`, có đặc điểm nhìn thấy và điểm tương đồng dẫn đến ID ảnh mẫu
+   có thật. Màu sắc đơn lẻ không phải quy tắc loại/nhận tự động.
+
+Kết quả `flags` chứa ảnh, metadata/prediction gốc, đặc điểm nhìn thấy và bằng chứng
+đối chiếu. Đây là các trường hợp **cần kiểm tra thủ công**, không phải nhãn xác nhận.
+Chất lượng `limited`/`insufficient` không flag; kết luận không rõ là `inconclusive`.
+Lỗi tải ảnh/provider/JSON là lỗi đọc ảnh, không phải kết quả âm.
+
+## Phạm vi kết quả và phân trang
+
+`limit`/`offset` chọn trang ứng viên được đọc ảnh, mặc định 20, tối đa 100.
+Không áp giới hạn này trước khi lọc. Không tự đặt giới hạn số ảnh mẫu.
+`total_candidates` là toàn bộ ứng viên khớp; `reviewed_count`, `flagged_count`,
+`unflagged`, `errors` thuộc trang đang kiểm tra. `next_offset` chỉ trang tiếp theo.
+`coverage_complete` chỉ true khi toàn bộ ứng viên được kiểm tra thành công từ đầu.
+Một trang cuối bắt đầu ở offset khác 0 cũng không tự được coi là toàn bộ phạm vi.
+
+Không có ứng viên (`no_candidates`) khác với đã đọc ảnh nhưng không có flag, và
+không gọi vision khi không có ứng viên. Trang rỗng ở offset vượt tổng trả
+`empty_page`. Thiếu bộ mẫu khi cần đọc ảnh báo lỗi; toàn bộ lượt đọc thất bại trả
+`failed`, không được diễn giải là không có trường hợp bị bỏ sót. Chưa có bộ mẫu
+thật hoặc chưa chạy trên MID thì chưa đánh giá chất lượng nhận dạng thực tế.
