@@ -21,23 +21,27 @@ from tests.file_server.test_carrier_references import png, reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
 
 
-@pytest.mark.parametrize("mode", ["references", "single", "pair", "generic", "investigation"])
+@pytest.mark.parametrize("mode", ["references", "single", "pair", "generic", "investigation", "false-investigation"])
 def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(tmp_path, monkeypatch, mode):
-    from ship_agent import carrier_reference_client, image_review, missed_carrier_tool
+    from ship_agent import carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool
+    from tests.integration.test_false_carrier_client import positive_payload
     reference_folder(tmp_path)
     (tmp_path / "second.png").write_bytes(png("red"))
     library = load_reference_library(tmp_path)
     rows = list(pair_rows())
     if mode == "investigation":
         rows = response_payload()["ships"]
-    for module in (carrier_reference_client, image_review, missed_carrier_tool):
+    elif mode == "false-investigation":
+        rows = positive_payload()["ships"]
+    for module in (carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool):
         monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_image_bytes", lambda row, *_: png("green" if row is rows[0] else "blue"))
     monkeypatch.setattr(image_review, "review_image_against_references", lambda row, refs, **kwargs:
-        reviewed(row, refs, "aircraft_carrier"))
+        reviewed(row, refs, "not_aircraft_carrier" if mode == "false-investigation" else "aircraft_carrier"))
     monkeypatch.setattr(image_review, "review_image", lambda row, **kwargs: {"observation_id": row["observation_id"]})
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
     monkeypatch.setattr(missed_carrier_tool, "request_missed_carrier_candidates", lambda _: response_payload())
+    monkeypatch.setattr(false_carrier_tool, "request_false_carrier_candidates", lambda _: positive_payload())
     name, args = "review_ship_images", {"observation_id": rows[0]["observation_id"], "use_carrier_references": mode != "generic"}
     targets = rows[:1]
     if mode == "references":
@@ -47,6 +51,8 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
         targets = rows
     elif mode == "investigation":
         name, args, targets = "investigate_missed_carriers", {"observed_from": "2025-01-01", "observed_to": "2025-12-31"}, rows
+    elif mode == "false-investigation":
+        name, args, targets = "investigate_false_carriers", {"observed_from": "2025-01-01", "observed_to": "2025-12-31"}, rows
     requests = []
     def respond(request):
         body = json.loads(request.content)
@@ -64,6 +70,8 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
             assert actual == expected + ([] if mode == "generic" else [image.data for image in library.images])
             tool_result = next(m for m in reversed(body["messages"]) if m["role"] == "tool")
             assert "base64" not in tool_result["content"]
+            if mode == "false-investigation":
+                assert json.loads(tool_result["content"])["flagged_count"] == 1
             answer, finish = {"role": "assistant", "content": "Đã xem trực tiếp ảnh trong lượt này."}, "stop"
         return httpx.Response(200, json={"id": "direct", "object": "chat.completion", "created": 0,
             "model": "chat-test", "choices": [{"index": 0, "finish_reason": finish, "message": answer}]})

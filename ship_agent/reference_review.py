@@ -74,7 +74,7 @@ def reference_review_result(observation, review: CarrierReferenceReview, library
             "is_ground_truth": False}
 
 
-def run_reference_reviews(candidates, library, review_fn):
+def run_reference_reviews(candidates, library, review_fn, *, result_builder=None):
     """Review every selected candidate; failed reviews never become clean negatives."""
     results, errors = [], []
     for observation in candidates["ships"]:
@@ -87,7 +87,8 @@ def run_reference_reviews(candidates, library, review_fn):
                     or reviewed["decision"] != expected["decision"]
                     or reviewed["flagged"] != expected["flagged"]):
                 raise ValueError("Review identity or decision mismatch.")
-            results.append({"observation": observation, **reviewed})
+            result = result_builder(observation, reviewed, library) if result_builder is not None else reviewed
+            results.append({"observation": observation, **result})
         except Exception:
             # Provider exceptions may include pixels, credentials or request bodies.
             errors.append({"observation_id": observation["observation_id"], "error": "image_review_failed"})

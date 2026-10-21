@@ -71,7 +71,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -79,7 +79,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -153,7 +153,7 @@ nếu tool có sẵn, kể cả đã xem ở lượt trước. Tool này mở to
 pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh chứ không chép lại
 reference_description rồi nói đó là quan sát độc lập.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
-khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
+khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers hoặc investigate_false_carriers,
 các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
 Đó là khối dữ liệu ảnh riêng cho lần gọi LLM hiện tại. Khi có khối image_url đó,
 bạn đang trực tiếp nhận ảnh; không nói
@@ -215,6 +215,21 @@ Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_expl
 đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
 bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
 Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
+Khi hỏi câu 16, tìm ảnh mang nhãn tàu sân bay nhưng có thể không phải (kể cả nghi
+giống tàu hàng/container), dùng investigate_false_carriers. Bắt buộc ngày, vùng
+tùy chọn; dùng use_chat_area=true cho vùng đang chọn. Không thêm ngưỡng score
+hoặc kích thước, không dùng bộ lọc nhãn âm của investigate_missed_carriers.
+Đọc ảnh với toàn bộ bộ mẫu, chỉ trình bày flags do tool trả về: sufficient,
+assessment=not_aircraft_carrier có đặc điểm thấy rõ và khác biệt cụ thể dẫn mẫu.
+Không cần kết luận loại tàu thay thế; gọi là nghi không phải tàu sân bay, cần kiểm
+tra thủ công. Khác một mẫu, màu đơn lẻ hoặc thiếu chi tiết không tự đủ để flag.
+Ảnh mờ/limited/insufficient hoặc unsupported negative là chưa đủ bằng chứng,
+không flag. Không sửa prediction hoặc kết luận lỗi đã được xác nhận.
+Nêu ảnh, observation_id/ship_id, prediction/score gốc, bằng chứng và hạn chế.
+Báo số đã đọc/tổng ứng viên, next_offset và lỗi theo trang; lỗi không phải kết
+quả âm và không có flag trong một trang không có nghĩa đã kiểm tra toàn bộ.
+Phạm vi câu 14 đã chốt là nhánh nghi bỏ sót: nhãn not_aircraft_carrier, score
+<=0.01 và dài >=250 m; dùng investigate_missed_carriers, giữ nguyên các mức này.
 Khi yêu cầu tìm tàu sân bay bị bỏ sót hoặc kiểm tra nhãn âm tự tin cao, dùng
 investigate_missed_carriers nếu có tool này. Khoảng ngày là bắt buộc; nếu chưa có
 ngày trong câu hỏi/ngữ cảnh thì hỏi người dùng, không tự chọn toàn bộ thời gian.

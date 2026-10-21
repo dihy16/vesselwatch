@@ -44,11 +44,10 @@ def request_observation_analysis(query: dict, *, data_source="file_server", tran
     return _request_query(query, data_source=data_source, transport=transport, analysis=True)
 
 
-def request_missed_carrier_candidates(query: dict, *, transport=None):
+def _request_review_candidates(query: dict, *, endpoint, matches, transport=None):
     from datetime import date, datetime, timedelta
-    from math import isfinite
     from file_server.loader import Observation
-    result = _request_query(query, transport=transport, endpoint="missed-carrier-candidates")
+    result = _request_query(query, transport=transport, endpoint=endpoint)
     if result["status"] != "complete":
         return result
     fingerprint = result.get("source_snapshot_id")
@@ -66,11 +65,22 @@ def request_missed_carrier_candidates(query: dict, *, transport=None):
         if (day.isoformat() != row["observed_date"] or captured.tzinfo is None
                 or captured.utcoffset() != timedelta(0) or captured.date() != day):
             raise ValueError("Candidate timestamps are not consistent UTC dates.")
-        score, length = row["confidence"], row["length_m"]
-        if (row["classification"] != "not_aircraft_carrier" or score is None
-                or not isfinite(score) or score > .01 or length is None or length < 250
+        if (not matches(row)
                 or not query["observed_from"] <= row["observed_date"] <= query["observed_to"]
                 or row["observation_id"] in seen):
-            raise ValueError("Observation does not match the agreed missed-carrier filters.")
+            raise ValueError("Observation does not match the requested review filters.")
         seen.add(row["observation_id"])
     return result
+
+
+def request_missed_carrier_candidates(query: dict, *, transport=None):
+    from math import isfinite
+    return _request_review_candidates(query, endpoint="missed-carrier-candidates", transport=transport,
+        matches=lambda row: row["classification"] == "not_aircraft_carrier"
+        and row["confidence"] is not None and isfinite(row["confidence"]) and row["confidence"] <= .01
+        and row["length_m"] is not None and row["length_m"] >= 250)
+
+
+def request_false_carrier_candidates(query: dict, *, transport=None):
+    return _request_review_candidates(query, endpoint="false-carrier-candidates", transport=transport,
+        matches=lambda row: row["classification"] == "aircraft_carrier")

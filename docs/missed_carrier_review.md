@@ -204,3 +204,60 @@ file server cho bước này. Thử câu hỏi về bộ mẫu ở trên và câ
 ở câu 15. Unit test kiểm tra đầy đủ pixel; test provider/graph dùng HTTPX
 MockTransport để kiểm tra body thực tế của request chat và mở lại qua lượt mới.
 Chưa có xác minh vision thực tế trên MID chỉ từ các kiểm tra offline.
+
+## Câu 14 và 16: hai chiều kiểm tra nhãn
+
+Phạm vi câu 14 được người dùng chốt giữ nguyên nhánh 14a đã triển khai:
+khoảng ngày bắt buộc, vùng tùy chọn, nhãn `not_aircraft_carrier`, score ≤0,01,
+chiều dài ≥250 m. Dùng `investigate_missed_carriers` và endpoint
+`POST /missed-carrier-candidates`; không mở rộng sang ngưỡng hoặc kích thước khác.
+`docs/BR.md` ghi rõ phạm vi này, thay vì đánh dấu một bộ kiểm tra lỗi mô hình
+tổng quát không có bộ lọc đã được chốt.
+
+Câu 16 được mở rộng theo yêu cầu người dùng: không cần chứng minh đó là tàu
+hàng/container; bất kỳ ảnh mang nhãn `aircraft_carrier` nào có bằng chứng rõ
+cho thấy có thể không phải tàu sân bay đều có thể được flag để kiểm tra.
+
+| Luồng | Ứng viên | Bằng chứng ảnh tạo flag |
+| --- | --- | --- |
+| Câu 14/14a — `investigate_missed_carriers` | Nhãn âm, score ≤0,01, dài ≥250 m | Ảnh đủ rõ, nhận xét nghi tàu sân bay, có đặc điểm nhìn thấy và tương đồng dẫn đến mẫu |
+| Câu 16 — `investigate_false_carriers` | Tất cả nhãn `aircraft_carrier` trong phạm vi; không thêm ngưỡng score/kích thước | Ảnh đủ rõ, nhận xét nghi không phải tàu sân bay, có đặc điểm nhìn thấy và khác biệt cụ thể dẫn đến mẫu |
+
+`POST /false-carrier-candidates` lọc toàn bộ snapshot trước `limit`/`offset`,
+dùng cùng xác nhận polygon, snapshot nguồn và quy tắc ngày UTC như nhánh 14a.
+Thiếu số đo/score không tự loại một observation đã có nhãn `aircraft_carrier`.
+Thiếu vị trí chỉ bị loại khi truy vấn có vùng không gian.
+
+Tool mới dùng lại bộ mẫu và hàm review từng ảnh. Review không được biết nhãn
+hoặc score gốc trước khi đọc pixel. Sau đó kiểm tra danh tính observation,
+revision, citation và chuẩn hóa bằng chứng như câu 13, rồi mới quyết định flag
+theo chiều nghi không phải tàu sân bay. Không đảo nhãn hoặc dùng riêng kích
+thước/màu sắc để tạo flag. Khác một ảnh mẫu hoặc không thấy chi tiết nhỏ chưa
+đủ để kết luận. Ảnh `limited`/`insufficient`, nhận xét âm thiếu đặc điểm hoặc
+khác biệt dẫn mẫu là chưa đủ bằng chứng, không flag. Không bắt buộc bộ mẫu tàu
+hàng và không tự gán một loại tàu khác.
+
+Kết quả có ảnh/ID, prediction gốc, `visual_review`, bằng chứng ủng hộ/mâu thuẫn,
+hạn chế và `flag_reason="suspected_non_carrier"` cho ảnh được flag. Đây không
+phải lỗi mô hình đã xác nhận (`is_confirmed_error=false`). Flag nằm trong kết
+quả điều tra; không ghi đè prediction hoặc nhãn human review đã lưu.
+
+Số đã đọc, lỗi, ảnh chưa đủ rõ, tổng ứng viên và `next_offset`/`coverage_complete`
+vẫn theo trang. Không có ứng viên khác với lỗi đọc toàn bộ ảnh. Các ảnh được
+review thành công trong trang cùng toàn bộ bộ mẫu cũng được đưa trực tiếp vào
+LLM chat như các luồng trước; kết quả không tạo thêm map khi dùng vùng chat.
+
+Sau `git pull`, restart **file server 8001** để có endpoint mới, rồi restart
+**LangGraph 2024**. Giữ cấu hình bộ mẫu, Pipe và map. LLM chat vẫn cần hỗ trợ
+ảnh và tool calls như phần trên.
+
+Thử câu 14:
+
+> Trong vùng vừa vẽ, từ 01/01/2025 đến 31/12/2025, tìm tàu sân bay có thể bị bỏ
+> sót với score ≤0,01 và dài ≥250 m. Đối chiếu 5 ảnh đầu với toàn bộ bộ mẫu.
+
+Thử câu 16:
+
+> Trong vùng vừa vẽ, từ 01/01/2025 đến 31/12/2025, kiểm tra 5 ảnh đầu được phân
+> loại là tàu sân bay. Flag các ảnh đủ rõ có bằng chứng có thể không phải tàu
+> sân bay, kèm ảnh và lý do. Không cần xác định loại tàu khác.

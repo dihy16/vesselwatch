@@ -19,6 +19,8 @@ from .spatial import (AREA_NAMES, AreaGeometry, UserPolygon, named_area,
 from .area_models import AreaQueryInput, AreaRequest, ObservationAnalysisRequest
 from .observation_analysis import analysis_filters, analyze_observations
 from .missed_carriers import MissedCarrierRequest, candidate_query, missed_carrier_candidates
+from .false_carriers import (FalseCarrierRequest, candidate_query as false_candidate_query,
+                             false_carrier_candidates)
 
 
 class AreaConfirmation(BaseModel):
@@ -153,6 +155,16 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         rows, _, record = checked_record(request, area["area_id"])
         return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
                 **missed_carrier_candidates(rows, body, geometry_for(record)),
+                "source_snapshot_id": record["snapshot_id"]}
+
+    @app.post("/false-carrier-candidates")
+    def false_candidates(body: FalseCarrierRequest, request: Request):
+        area = query_area(false_candidate_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **false_carrier_candidates(rows, body, geometry_for(record)),
                 "source_snapshot_id": record["snapshot_id"]}
 
     @app.post("/observation-analyses")
