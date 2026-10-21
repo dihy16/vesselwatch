@@ -1,6 +1,7 @@
 # Agent truy vấn tàu
 
 Cấu trúc package và các entry point: [hướng dẫn codebase](docs/code_structure.md).
+Test các tính năng phân tích: [hướng dẫn test Level 4–5 trên MID/Open WebUI](docs/testing_level_4_5.md).
 
 Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, score ≤0,01, dài ≥250 m):
 xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
