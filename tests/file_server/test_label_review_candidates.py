@@ -2,9 +2,9 @@
 
 from copy import deepcopy
 
-from file_server.false_carriers import FalseCarrierRequest
-from file_server.label_review import label_review_candidates
-from file_server.spatial import AreaGeometry
+from file_server.schemas.reviews import FalseCarrierRequest
+from file_server.services.label_review import label_review_candidates
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 

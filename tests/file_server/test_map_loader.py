@@ -6,11 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from file_server.area_models import AreaQueryInput
+from file_server.schemas.area_models import AreaQueryInput
 from file_server.config import DataSettings
-from file_server.loader import load_store, registered_image
-from file_server.map_bundle import load_bundle
-from file_server.spatial import AreaGeometry, query_observations
+from file_server.data.loader import load_store
+from file_server.data.store import registered_image
+from file_server.data.map_bundle import load_bundle
+from file_server.services.spatial import AreaGeometry
+from file_server.services.spatial import query_observations
 
 
 @pytest.fixture
@@ -30,7 +32,7 @@ def map_data(tmp_path, monkeypatch):
                                   "ground_truth_label": "Carrier absent", "length_m": 300},
                      **({"prediction": {"carrier_score": score}} if score is not None else {})})
     data = SimpleNamespace(sources=rows, image_root=root)
-    monkeypatch.setattr("file_server.map_loader.load_bundle", lambda _: (
+    monkeypatch.setattr("file_server.data.map_loader.load_bundle", lambda _: (
         deepcopy(data), {"data_source": "map_bundle", "map_snapshot_id": "snapshot"}))
     settings = DataSettings(Path("unused"), Path("unused"), Path("unused"),
                             data_source="map_bundle", map_demo_dir=tmp_path)
@@ -74,7 +76,7 @@ def test_missing_bundle_fails_instead_of_using_telegram(tmp_path):
 
 def test_agent_client_accepts_complete_snapshot_with_unknown_fields(map_data):
     import httpx
-    from ship_agent.file_server_client import load_observations
+    from ship_agent.clients.file_server_client import load_observations
     rows = [o.model_dump() for o in load_store(map_data).observations]
     def respond(request):
         return httpx.Response(200, json={"is_mock": False, "timezone": "UTC", "total": 4,

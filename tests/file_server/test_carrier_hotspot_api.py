@@ -7,7 +7,7 @@ pytest.importorskip("fastapi")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from file_server.area_queries import register_area_routes
+from file_server.api.area_queries import register_area_routes
 from tests.file_server.test_carrier_hotspots import source_rows, scope, stub_labels
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
@@ -67,7 +67,7 @@ def test_unknown_area_needs_drawing_dates_required_and_parameters_fixed(tmp_path
 
 
 def test_incompatible_cluster_engine_returns_service_error_not_zero_clusters(tmp_path, monkeypatch):
-    from file_server import carrier_hotspots
+    import file_server.services.carrier_hotspots as carrier_hotspots
     def unavailable(rows):
         raise ImportError("private-binary-body")
     monkeypatch.setattr(carrier_hotspots, "dbscan_labels", unavailable)

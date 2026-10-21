@@ -6,9 +6,12 @@ import random
 import pytest
 from pydantic import ValidationError
 
-from file_server.area_models import AreaQueryInput, ObservationAnalysisRequest
-from file_server.observation_analysis import analysis_filters, analyze_observations
-from file_server.spatial import AreaGeometry, query_observations
+from file_server.schemas.area_models import AreaQueryInput
+from file_server.schemas.area_models import ObservationAnalysisRequest
+from file_server.services.observation_analysis import analysis_filters
+from file_server.services.observation_analysis import analyze_observations
+from file_server.services.spatial import AreaGeometry
+from file_server.services.spatial import query_observations
 from tests.file_server.test_spatial import observation, SQUARE
 
 

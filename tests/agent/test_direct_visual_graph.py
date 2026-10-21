@@ -3,6 +3,7 @@
 import base64
 import json
 
+
 import httpx
 import pytest
 
@@ -10,12 +11,15 @@ pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 pytest.importorskip("langchain_openai")
 
+import ship_agent.tools.images as image_tools
+
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.agent import build_agent, _chat_visual_message
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.runtime.agent import build_agent
+from ship_agent.runtime.attachments import _chat_visual_message
 from tests.agent.test_pair_evidence import pair_rows, reviewed
 from tests.file_server.test_carrier_references import png, reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
@@ -23,8 +27,14 @@ from tests.integration.test_missed_carrier_client import response_payload
 
 @pytest.mark.parametrize("mode", ["references", "single", "pair", "generic", "investigation", "false-investigation", "priority-investigation", "hotspot-investigation", "monitoring-report", "label-review"])
 def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(tmp_path, monkeypatch, mode):
-    from ship_agent import carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool
-    from ship_agent import hotspot_tools, monitoring_tool, label_review_tool
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
+    import ship_agent.tools.missed_carrier_tool as missed_carrier_tool
+    import ship_agent.tools.false_carrier_tool as false_carrier_tool
+    import ship_agent.tools.carrier_investigation_tool as carrier_investigation_tool
+    import ship_agent.tools.hotspot_tools as hotspot_tools
+    import ship_agent.tools.monitoring_tool as monitoring_tool
+    import ship_agent.tools.label_review_tool as label_review_tool
     from tests.integration.test_monitoring_client import payload as monitoring_payload
     from tests.integration.test_label_review_client import payload as label_review_payload
     from tests.integration.test_false_carrier_client import positive_payload
@@ -44,7 +54,7 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
         rows = monitoring_payload()["ships"]
     elif mode == "label-review":
         rows = label_review_payload()["ships"]
-    for module in (carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool, hotspot_tools, monitoring_tool, label_review_tool):
+    for module in (carrier_reference_client, image_tools, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool, hotspot_tools, monitoring_tool, label_review_tool):
         monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_image_bytes", lambda row, *_: png("green" if row is rows[0] else "blue"))
     monkeypatch.setattr(image_review, "review_image_against_references", lambda row, refs, **kwargs:
@@ -122,7 +132,7 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
 
 
 def test_direct_image_failure_reports_no_pixels_without_leaking_error_body(monkeypatch):
-    from ship_agent import carrier_reference_client
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
     def fail():
         raise ValueError("secret-provider-body")
     monkeypatch.setattr(carrier_reference_client, "load_carrier_references", fail)
@@ -134,9 +144,10 @@ def test_direct_image_failure_reports_no_pixels_without_leaking_error_body(monke
 
 
 def test_chat_model_rejecting_images_does_not_fall_back_to_text(tmp_path, monkeypatch):
-    from ship_agent import carrier_reference_client, image_review
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
-    for module in (carrier_reference_client, image_review):
+    for module in (carrier_reference_client, image_tools):
         monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     class RejectImages:
         calls = 0

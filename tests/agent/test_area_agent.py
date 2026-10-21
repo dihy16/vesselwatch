@@ -1,5 +1,6 @@
 """Agent spatial tools and drawing artifacts with mocked model/HTTP responses."""
 
+
 import json
 
 import httpx
@@ -8,15 +9,17 @@ import pytest
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 
+import ship_agent.tools.areas as area_tools
+
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
-from ship_agent.agent import _current_maps, build_agent
-from ship_agent.tools import create_tools
+from ship_agent.runtime.attachments import _current_maps
+from ship_agent.runtime.agent import build_agent
+from ship_agent.tools.registry import create_tools
 
 
 def test_unknown_area_tool_result_attaches_drawing_map(monkeypatch):
-    from ship_agent import tools
 
     calls = []
 
@@ -25,7 +28,7 @@ def test_unknown_area_tool_result_attaches_drawing_map(monkeypatch):
         return {"status": "needs_drawing", "selection_id": "a" * 32,
                 "map_url": "http://viewer:8001/area-queries/" + "a" * 32}
 
-    monkeypatch.setattr(tools, "request_area_query", query)
+    monkeypatch.setattr(area_tools, "request_area_query", query)
     requests = []
 
     def model_response(request):
@@ -61,10 +64,9 @@ def test_named_correction_removes_previous_unconfirmed_selection():
 
 
 def test_area_tool_preserves_confirmed_reference_and_strict_dimensions(monkeypatch):
-    from ship_agent import tools
 
     captured = []
-    monkeypatch.setattr(tools, "request_area_query", lambda query, **kwargs: captured.append(query) or {"total": 2})
+    monkeypatch.setattr(area_tools, "request_area_query", lambda query, **kwargs: captured.append(query) or {"total": 2})
     tool = next(t for t in create_tools(observations=[]) if t.name == "query_ships_in_area")
     tool.invoke({"area_id": "a" * 32, "observed_from": "2026-10-01", "observed_to": "2026-10-02",
                  "length_gt_m": 250, "classification": "aircraft_carrier"})

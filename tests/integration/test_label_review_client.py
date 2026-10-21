@@ -6,8 +6,8 @@ import json
 import httpx
 import pytest
 
-from file_server.label_review import label_review_candidates
-from ship_agent.label_review_client import request_label_review_candidates
+from file_server.services.label_review import label_review_candidates
+from ship_agent.clients.label_review_client import request_label_review_candidates
 from tests.file_server.test_label_review_candidates import scope
 from tests.integration.test_false_carrier_client import positive_payload
 

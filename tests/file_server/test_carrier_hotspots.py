@@ -7,10 +7,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from file_server.carrier_hotspots import (EARTH_RADIUS_KM, HotspotClusterRequest, build_hotspot_report,
-                                         dbscan_labels, hotspot_cluster_candidates)
-from file_server.false_carriers import FalseCarrierRequest
-from file_server.spatial import AreaGeometry
+from file_server.services.carrier_hotspots import EARTH_RADIUS_KM
+from file_server.schemas.reviews import HotspotClusterRequest
+from file_server.services.carrier_hotspots import build_hotspot_report
+from file_server.services.carrier_hotspots import dbscan_labels
+from file_server.services.carrier_hotspots import hotspot_cluster_candidates
+from file_server.schemas.reviews import FalseCarrierRequest
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 
@@ -38,7 +41,7 @@ def source_rows():
 @pytest.fixture(autouse=True)
 def stub_labels(monkeypatch):
     """Fixed cluster-engine results isolate statistics/filtering from sklearn tests."""
-    from file_server import carrier_hotspots
+    import file_server.services.carrier_hotspots as carrier_hotspots
     groups = {"a1": 0, "a2": 0, "a3": 0, "b1": 1, "b2": 1, "a": 0, "b": 0}
     monkeypatch.setattr(carrier_hotspots, "dbscan_labels", lambda rows:
                         [groups.get(item["observation_id"], -1) for item in rows])
@@ -62,7 +65,7 @@ def test_sklearn_adapter_uses_latitude_longitude_radians_and_30km(monkeypatch):
 
 
 def test_observation_ids_deduplicate_before_calling_cluster_engine(monkeypatch):
-    from file_server import carrier_hotspots
+    import file_server.services.carrier_hotspots as carrier_hotspots
     seen = []
     monkeypatch.setattr(carrier_hotspots, "dbscan_labels", lambda rows: seen.extend(rows) or [-1] * len(rows))
     duplicate = row("same-id", x=111, y=16, day="2025-01-01")

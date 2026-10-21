@@ -1,5 +1,7 @@
 # Agent truy vấn tàu
 
+Cấu trúc package và các entry point: [hướng dẫn codebase](docs/code_structure.md).
+
 Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, score ≤0,01, dài ≥250 m):
 xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
 Luồng câu 17: [điều tra và xếp ưu tiên kiểm tra thủ công](docs/carrier_investigation.md).
@@ -42,7 +44,7 @@ Chạy trực tiếp, không cần LLM điều phối hoặc server demo:
 
 ```powershell
 # Xem các observation_id có sẵn trong bộ ảnh demo.
-python -c "from ship_agent.demo_data import load_demo_observations; print('\n'.join(o['observation_id'] for o in load_demo_observations()))"
+python -c "from ship_agent.data.demo_data import load_demo_observations; print('\n'.join(o['observation_id'] for o in load_demo_observations()))"
 python -m ship_agent.image_review --data-source demo --observation-id <observation_id>
 ```
 

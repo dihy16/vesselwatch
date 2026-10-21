@@ -6,8 +6,10 @@ import json
 import httpx
 import pytest
 
-from file_server.monitoring_reports import LABELS, build_monitoring_report, compare_rates
-from ship_agent.monitoring_client import request_monitoring_report
+from file_server.services.monitoring_reports import LABELS
+from file_server.services.monitoring_reports import build_monitoring_report
+from file_server.services.monitoring_reports import compare_rates
+from ship_agent.clients.monitoring_client import request_monitoring_report
 from tests.file_server.test_monitoring_reports import scope
 from tests.integration.test_false_carrier_client import positive_payload
 

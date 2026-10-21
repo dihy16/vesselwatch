@@ -4,9 +4,9 @@ from copy import deepcopy
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.false_carrier_evidence import build_false_carrier_evidence
-from ship_agent.reference_review import run_reference_reviews
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.vision.false_carrier_evidence import build_false_carrier_evidence
+from ship_agent.workflows.reference_review import run_reference_reviews
 from tests.agent.test_pair_evidence import reviewed
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_false_carrier_client import positive_payload

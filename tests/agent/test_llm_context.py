@@ -9,9 +9,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_openai import ChatOpenAI
 import pytest
 
-from ship_agent.agent import build_agent
-from ship_agent.llm_context import messages_for_llm
-from ship_agent.map_artifacts import render_map_artifact
+from ship_agent.runtime.agent import build_agent
+from ship_agent.runtime.llm_context import messages_for_llm
+from ship_agent.artifacts.map_artifacts import render_map_artifact
 
 
 IMAGE = base64.b64encode(b"large saved crop" * 16000).decode("ascii")
@@ -93,7 +93,7 @@ def test_summary_is_bounded_and_never_keeps_data_urls_from_links():
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_report_followup_strips_html_on_every_model_call_and_preserves_history(monkeypatch, stream):
-    from ship_agent import agent as agent_module
+    import ship_agent.runtime.agent as agent_module
 
     monkeypatch.setattr(agent_module, "render_carrier_artifact", lambda report: HTML)
     requests = []

@@ -5,7 +5,8 @@ from datetime import date
 import httpx
 import pytest
 
-from ship_agent.file_server_client import FileServerError, load_observations
+from ship_agent.clients.file_server_client import FileServerError
+from ship_agent.clients.file_server_client import load_observations
 
 
 def observation(index, *, day="2026-10-13"):

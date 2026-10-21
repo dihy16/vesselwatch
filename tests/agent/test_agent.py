@@ -7,7 +7,7 @@ import httpx
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
-from ship_agent.agent import build_agent
+from ship_agent.runtime.agent import build_agent
 
 
 def test_chatopenai_graph_executes_both_tools_and_returns_to_model():
@@ -80,7 +80,7 @@ def test_graph_returns_invalid_tool_input_to_model_for_correction():
 
 
 def test_default_real_agent_preloads_once_and_reuses_snapshot(monkeypatch):
-    from ship_agent import tools as tools_module
+    import ship_agent.tools.registry as tools_module
 
     fetches = []
     requests = []

@@ -6,7 +6,8 @@ import json
 import httpx
 import pytest
 
-from ship_agent.hotspot_client import request_carrier_hotspots, request_carrier_hotspot_candidates
+from ship_agent.clients.hotspot_client import request_carrier_hotspots
+from ship_agent.clients.hotspot_client import request_carrier_hotspot_candidates
 from tests.file_server.test_carrier_hotspots import report, source_rows, scope, stub_labels
 from tests.integration.test_carrier_investigation_client import investigation_payload
 

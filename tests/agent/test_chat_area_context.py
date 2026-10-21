@@ -4,9 +4,11 @@ from copy import deepcopy
 
 import pytest
 
-from ship_agent.chat_area import apply_chat_area, chat_area_note
-from file_server.area_models import AreaQueryInput
-from file_server.spatial import AreaGeometry, query_observations
+from ship_agent.runtime.chat_area import apply_chat_area
+from ship_agent.runtime.chat_area import chat_area_note
+from file_server.schemas.area_models import AreaQueryInput
+from file_server.services.spatial import AreaGeometry
+from file_server.services.spatial import query_observations
 from tests.file_server.test_chat_areas import SQUARE
 from tests.file_server.test_spatial import observation
 

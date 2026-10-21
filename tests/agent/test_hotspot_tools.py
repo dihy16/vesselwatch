@@ -10,8 +10,8 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.hotspot_tools import create_carrier_hotspot_tools
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.hotspot_tools import create_carrier_hotspot_tools
 from tests.agent.test_carrier_investigation_workflow import candidates
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder, png
@@ -23,7 +23,8 @@ REVIEW = {**QUERY, "report_id": "a" * 64, "cluster_id": "b" * 32}
 
 
 def setup_review(tmp_path, monkeypatch):
-    from ship_agent import hotspot_tools, image_review
+    import ship_agent.tools.hotspot_tools as hotspot_tools
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(hotspot_tools, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -55,7 +56,7 @@ def test_discovery_and_review_share_exact_hidden_chat_scope(tmp_path, monkeypatc
 
 
 def test_short_members_need_no_vision_and_empty_clusters_need_no_references(monkeypatch):
-    from ship_agent import hotspot_tools
+    import ship_agent.tools.hotspot_tools as hotspot_tools
     monkeypatch.setattr(hotspot_tools, "load_carrier_references", lambda: pytest.fail("No image review expected"))
     monkeypatch.setattr(hotspot_tools, "request_carrier_hotspot_candidates", lambda _: candidates([100]))
     _, investigate = create_carrier_hotspot_tools()
@@ -66,7 +67,7 @@ def test_short_members_need_no_vision_and_empty_clusters_need_no_references(monk
 
 
 def test_drawing_reuses_persistent_panel_and_backend_errors_do_not_become_empty_results(monkeypatch):
-    from ship_agent import hotspot_tools
+    import ship_agent.tools.hotspot_tools as hotspot_tools
     monkeypatch.setattr(hotspot_tools, "request_carrier_hotspots", lambda _: {
         "status": "needs_drawing", "selection_id": "c" * 32, "map_url": "http://public/map"})
     config = {"configurable": {"chat_area_context": {"user_id": "u", "chat_id": "c", "active_area": None}}}
@@ -82,8 +83,9 @@ def test_drawing_reuses_persistent_panel_and_backend_errors_do_not_become_empty_
 
 
 def test_graph_can_discover_then_review_same_cluster_without_refreshing_map(tmp_path, monkeypatch):
-    from ship_agent.agent import build_agent
-    from ship_agent import carrier_reference_client, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     module, library = setup_review(tmp_path, monkeypatch)
     monkeypatch.setattr(module, "request_carrier_hotspots", lambda _: {
         "status": "complete", "report_id": REVIEW["report_id"], "clusters": [{"cluster_id": REVIEW["cluster_id"]}]})

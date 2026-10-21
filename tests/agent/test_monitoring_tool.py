@@ -10,8 +10,8 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.monitoring_tool import create_monitoring_report_tool
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.monitoring_tool import create_monitoring_report_tool
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder, png
 from tests.file_server.test_spatial import SQUARE
@@ -22,7 +22,8 @@ QUERY = {"observed_from": "2025-01-01", "observed_to": "2025-02-28"}
 
 
 def setup(tmp_path, monkeypatch):
-    from ship_agent import monitoring_tool, image_review
+    import ship_agent.tools.monitoring_tool as monitoring_tool
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(monitoring_tool, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -50,7 +51,7 @@ def test_hidden_chat_area_same_snapshot_counts_and_only_reviewed_target_pixels(t
 
 
 def test_unavailable_library_preserves_monthly_report_and_dimension_results(monkeypatch):
-    from ship_agent import monitoring_tool
+    import ship_agent.tools.monitoring_tool as monitoring_tool
     monkeypatch.setattr(monitoring_tool, "request_monitoring_report", lambda _: payload())
     def unavailable():
         raise ValueError("private-error-body")
@@ -63,8 +64,9 @@ def test_unavailable_library_preserves_monthly_report_and_dimension_results(monk
 
 @pytest.mark.parametrize("output_format", ["html", "json"])
 def test_graph_attaches_only_requested_report_and_reloads_reviewed_pixels(tmp_path, monkeypatch, output_format):
-    from ship_agent.agent import build_agent
-    from ship_agent import carrier_reference_client, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     module, library = setup(tmp_path, monkeypatch)
     monkeypatch.setattr(module, "request_monitoring_report", lambda _: payload())
     monkeypatch.setattr(carrier_reference_client, "load_carrier_references", lambda: library)

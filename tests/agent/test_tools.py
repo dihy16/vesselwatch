@@ -4,7 +4,7 @@ import pytest
 from langchain_core.tools import ToolException
 from pydantic import ValidationError
 
-from ship_agent.tools import create_tools
+from ship_agent.tools.registry import create_tools
 
 
 @pytest.fixture

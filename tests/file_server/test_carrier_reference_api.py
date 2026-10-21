@@ -9,7 +9,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 from file_server.app import create_app
 from file_server.config import DataSettings
-from file_server.loader import ObservationStore
+from file_server.data.store import ObservationStore
 from tests.file_server.test_carrier_references import reference_folder, png
 
 

@@ -7,7 +7,7 @@ pytest.importorskip("fastapi")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from file_server.area_queries import register_area_routes
+from file_server.api.area_queries import register_area_routes
 from tests.file_server.test_label_review_candidates import source_rows, scope
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE

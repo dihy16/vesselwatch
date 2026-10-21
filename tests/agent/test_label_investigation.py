@@ -4,8 +4,9 @@ from copy import deepcopy
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.label_review import build_label_review, run_label_investigation
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.workflows.label_review import build_label_review
+from ship_agent.workflows.label_review import run_label_investigation
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_label_review_client import payload

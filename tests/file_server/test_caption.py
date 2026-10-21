@@ -3,7 +3,7 @@
 from datetime import timedelta
 import unittest
 
-from file_server.caption import parse_caption
+from file_server.data.caption import parse_caption
 
 
 SAMPLE_CAPTION = (

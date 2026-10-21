@@ -5,8 +5,8 @@ from io import BytesIO
 from PIL import Image
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from file_server.image_assets import normalize_image
+from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import normalize_image
 
 
 def png(color="blue", size=(32, 24)):

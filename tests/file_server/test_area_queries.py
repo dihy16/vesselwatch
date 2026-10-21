@@ -7,7 +7,7 @@ pytest.importorskip("fastapi")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from file_server.area_queries import register_area_routes
+from file_server.api.area_queries import register_area_routes
 from tests.file_server.test_spatial import SQUARE, observation
 
 
@@ -64,7 +64,7 @@ def test_stale_area_and_bad_geometry_are_not_zero_results(area_app):
 
 
 def test_confirmation_button_calls_agent_with_exact_area_and_filters(area_app, monkeypatch):
-    from file_server import area_queries
+    import file_server.api.area_queries as area_queries
 
     calls = []
 

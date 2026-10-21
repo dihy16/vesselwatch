@@ -5,8 +5,10 @@ from datetime import date
 
 import pytest
 
-from file_server.monitoring_reports import MonitoringRequest, build_monitoring_report, month_windows
-from file_server.spatial import AreaGeometry
+from file_server.schemas.monitoring import MonitoringRequest
+from file_server.services.monitoring_reports import build_monitoring_report
+from file_server.services.monitoring_reports import month_windows
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 

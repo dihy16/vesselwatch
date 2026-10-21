@@ -7,8 +7,10 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from file_server.carrier_hotspots import EARTH_RADIUS_KM, dbscan_labels, build_hotspot_report
-from file_server.false_carriers import FalseCarrierRequest
+from file_server.services.carrier_hotspots import EARTH_RADIUS_KM
+from file_server.services.carrier_hotspots import dbscan_labels
+from file_server.services.carrier_hotspots import build_hotspot_report
+from file_server.schemas.reviews import FalseCarrierRequest
 from tests.file_server.test_observation_analysis import row
 
 

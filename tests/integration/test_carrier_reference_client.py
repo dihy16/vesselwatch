@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.carrier_reference_client import load_carrier_references
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.clients.carrier_reference_client import load_carrier_references
 from tests.file_server.test_carrier_references import png, reference_folder
 
 

@@ -6,9 +6,11 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.reference_review import (CarrierReferenceReview, reference_review_content,
-                                         reference_review_result, run_reference_reviews)
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.vision.schemas import CarrierReferenceReview
+from ship_agent.workflows.reference_review import reference_review_content
+from ship_agent.workflows.reference_review import reference_review_result
+from ship_agent.workflows.reference_review import run_reference_reviews
 from tests.file_server.test_carrier_references import png, reference_folder
 
 

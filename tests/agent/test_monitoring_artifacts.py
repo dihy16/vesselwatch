@@ -5,9 +5,9 @@ from html.parser import HTMLParser
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.carrier_investigation import run_carrier_investigation
-from ship_agent.monitoring_artifacts import render_monitoring_artifact
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.workflows.carrier_investigation import run_carrier_investigation
+from ship_agent.artifacts.monitoring_artifacts import render_monitoring_artifact
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_monitoring_client import payload

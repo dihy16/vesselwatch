@@ -7,8 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.visual_context import attach_visual_input, build_visual_content, latest_visual_input
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.runtime.visual_context import attach_visual_input
+from ship_agent.runtime.visual_context import build_visual_content
+from ship_agent.runtime.visual_context import latest_visual_input
 from tests.agent.test_pair_evidence import pair_rows
 from tests.file_server.test_carrier_references import png, reference_folder
 

@@ -8,9 +8,15 @@ import json
 from pydantic import ValidationError
 import pytest
 
-from file_server.area_models import AreaQueryInput, AreaRequest
-from file_server.spatial import (AREA_DATA, AREA_NAMES, AreaGeometry, UserPolygon,
-                                 named_area, predefined_geometry, query_observations)
+from file_server.schemas.area_models import AreaQueryInput
+from file_server.schemas.area_models import AreaRequest
+from file_server.services.spatial import AREA_DATA
+from file_server.services.spatial import AREA_NAMES
+from file_server.services.spatial import AreaGeometry
+from file_server.schemas.geometry import UserPolygon
+from file_server.services.spatial import named_area
+from file_server.services.spatial import predefined_geometry
+from file_server.services.spatial import query_observations
 
 
 SQUARE = {"type": "Polygon", "coordinates": [[[110, 15], [112, 15], [112, 17], [110, 17], [110, 15]]]}

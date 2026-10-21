@@ -11,8 +11,8 @@ from langchain_openai import ChatOpenAI
 from PIL import Image
 import pytest
 
-from ship_agent import image_review
-from ship_agent.tools import create_tools
+import ship_agent.vision.image_review as image_review
+from ship_agent.tools.registry import create_tools
 
 
 @pytest.fixture
@@ -146,7 +146,7 @@ def test_tool_looks_up_exact_observation_and_excludes_mock(observation, monkeypa
 
 
 def test_demo_uses_verified_local_image_without_http():
-    from ship_agent.demo_data import load_demo_observations
+    from ship_agent.data.demo_data import load_demo_observations
 
     observation = load_demo_observations()[0]
     result = image_review.review_image(observation, data_source="demo", model=Reviewer(),
@@ -175,7 +175,7 @@ def test_missing_key_is_actionable(monkeypatch):
 
 def test_graph_executes_review_and_returns_result_to_agent(observation, monkeypatch):
     from langchain_core.messages import HumanMessage, ToolMessage
-    from ship_agent.agent import build_agent
+    from ship_agent.runtime.agent import build_agent
 
     monkeypatch.setattr(image_review, "_image_bytes", lambda *args: png_bytes())
     monkeypatch.setattr(image_review, "_vision_model", lambda: Reviewer())

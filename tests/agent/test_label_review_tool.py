@@ -10,8 +10,8 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.label_review_tool import create_label_review_tool
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.label_review_tool import create_label_review_tool
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder, png
 from tests.file_server.test_spatial import SQUARE
@@ -22,7 +22,8 @@ QUERY = {"observed_from": "2025-01-01", "observed_to": "2025-12-31"}
 
 
 def setup(tmp_path, monkeypatch):
-    from ship_agent import label_review_tool, image_review
+    import ship_agent.tools.label_review_tool as label_review_tool
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(label_review_tool, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -50,7 +51,7 @@ def test_hidden_chat_scope_and_all_reviewed_targets_including_short_and_missing_
 
 
 def test_preparation_failure_preserves_metadata_and_has_no_stale_image_descriptor(monkeypatch):
-    from ship_agent import label_review_tool
+    import ship_agent.tools.label_review_tool as label_review_tool
     monkeypatch.setattr(label_review_tool, "request_label_review_candidates", lambda _: payload())
     def missing():
         raise ValueError("private-provider-body")
@@ -62,8 +63,9 @@ def test_preparation_failure_preserves_metadata_and_has_no_stale_image_descripto
 
 
 def test_graph_receives_every_reviewed_target_and_group_evidence_without_new_map(tmp_path, monkeypatch):
-    from ship_agent.agent import build_agent
-    from ship_agent import carrier_reference_client, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     module, library = setup(tmp_path, monkeypatch)
     page = payload()
     monkeypatch.setattr(module, "request_label_review_candidates", lambda _: page)

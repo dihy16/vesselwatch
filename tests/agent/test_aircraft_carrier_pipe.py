@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from tests.file_server.test_chat_areas import SQUARE, session_server
-from ship_agent.chat_area import apply_chat_area
+from ship_agent.runtime.chat_area import apply_chat_area
 
 
 @pytest.fixture

@@ -5,11 +5,13 @@ import pytest
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 
+import ship_agent.tools.areas as area_tools
+
 from langchain_core.tools import ToolException
-from ship_agent.tools import create_tools
-from file_server.area_models import ObservationAnalysisRequest
-from file_server.observation_analysis import analyze_observations
-from file_server.spatial import AreaGeometry
+from ship_agent.tools.registry import create_tools
+from file_server.schemas.area_models import ObservationAnalysisRequest
+from file_server.services.observation_analysis import analyze_observations
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 
@@ -24,7 +26,6 @@ def test_search_score_and_length_strict_full_counts():
 
 
 def test_analysis_tool_uses_full_backend_and_hidden_chat_polygon(monkeypatch):
-    from ship_agent import tools as module
     rows = [row("p"), row("n", label="not_aircraft_carrier"), row("outside", x=115)]
     received = []
     def analyze(payload, **kwargs):
@@ -32,7 +33,7 @@ def test_analysis_tool_uses_full_backend_and_hidden_chat_polygon(monkeypatch):
         request = ObservationAnalysisRequest.model_validate(payload)
         return {"status": "complete", "area_id": "a" * 32, "map_url": "http://private-map",
                 **analyze_observations(rows, request, AreaGeometry(payload["polygon"]))}
-    monkeypatch.setattr(module, "request_observation_analysis", analyze)
+    monkeypatch.setattr(area_tools, "request_observation_analysis", analyze)
     tool = next(t for t in create_tools(observations=rows) if t.name == "analyze_ship_observations")
     assert "config" not in tool.tool_call_schema.model_json_schema()["properties"]
     config = {"configurable": {"thread_id": "c", "chat_area_context": {

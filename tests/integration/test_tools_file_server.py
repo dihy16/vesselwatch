@@ -9,8 +9,9 @@ import pytest
 
 pytest.importorskip("langchain_core")
 
-from ship_agent import tools as tools_module
-from ship_agent.file_server_client import FileServerError, load_observations
+import ship_agent.tools.registry as tools_module
+from ship_agent.clients.file_server_client import FileServerError
+from ship_agent.clients.file_server_client import load_observations
 
 
 def row(index):
@@ -76,7 +77,8 @@ def test_source_failure_stops_creation(monkeypatch):
 
 
 def test_graph_entry_point_preloads_once_for_multiple_runs(monkeypatch):
-    from ship_agent import agent, file_server_client
+    import ship_agent.runtime.agent as agent
+    import ship_agent.clients.file_server_client as file_server_client
 
     rows = [row(0)]
     fetches, snapshots = [], []

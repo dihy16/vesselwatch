@@ -8,7 +8,7 @@ import pytest
 from file_server.app import create_app
 from file_server import config
 from file_server.config import DataSettings
-from file_server.loader import load_store
+from file_server.data.loader import load_store
 
 
 def write_json(path, value):

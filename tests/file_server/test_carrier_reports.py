@@ -9,7 +9,8 @@ from PIL import Image
 import pytest
 
 from file_server.app import create_app
-from file_server.carrier_reports import daily_carrier_report, render_carrier_chart
+from file_server.services.carrier_reports import daily_carrier_report
+from file_server.media.charts import render_carrier_chart
 from file_server.config import DataSettings
 
 

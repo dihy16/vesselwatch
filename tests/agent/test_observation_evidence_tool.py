@@ -1,5 +1,6 @@
 """Question 13 reuses the actual image tool for arbitrary registered observations."""
 
+
 import json
 
 import pytest
@@ -7,12 +8,14 @@ import pytest
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 
+import ship_agent.tools.images as image_tools
+
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.image_review import create_image_review_tool
-from ship_agent.reference_review import reference_review_result
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.images import create_image_review_tool
+from ship_agent.workflows.reference_review import reference_review_result
 from tests.agent.test_reference_review import review
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
@@ -25,11 +28,11 @@ def positive_observation():
 
 
 def test_reference_mode_accepts_positive_short_observation_and_preserves_default(tmp_path, monkeypatch):
-    from ship_agent import image_review
+    import ship_agent.vision.image_review as image_review
     row = positive_observation()
     library = load_reference_library(reference_folder(tmp_path))
     loaded, compared = [], []
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: loaded.append(True) or library)
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: loaded.append(True) or library)
     def compare(observation, refs, **kwargs):
         compared.append((observation, refs, kwargs))
         return reference_review_result(observation, review(refs), refs)
@@ -51,10 +54,10 @@ def test_reference_mode_accepts_positive_short_observation_and_preserves_default
 
 
 def test_missing_references_never_falls_back_to_label_or_generic_review(monkeypatch):
-    from ship_agent import image_review
+    import ship_agent.vision.image_review as image_review
     def missing():
         raise ValueError("No references")
-    monkeypatch.setattr(image_review, "load_carrier_references", missing)
+    monkeypatch.setattr(image_tools, "load_carrier_references", missing)
     monkeypatch.setattr(image_review, "review_image", lambda *_, **__: pytest.fail("No silent fallback"))
     monkeypatch.setattr(image_review, "review_image_against_references", lambda *_, **__: pytest.fail("No incomplete comparison"))
     with pytest.raises(ToolException, match="CARRIER_REFERENCE_DIR"):
@@ -63,11 +66,11 @@ def test_missing_references_never_falls_back_to_label_or_generic_review(monkeypa
 
 
 def test_graph_resolves_observation_then_reviews_evidence_without_candidate_screening(tmp_path, monkeypatch):
-    from ship_agent import image_review
-    from ship_agent.agent import build_agent
+    import ship_agent.vision.image_review as image_review
+    from ship_agent.runtime.agent import build_agent
     row = positive_observation()
     library = load_reference_library(reference_folder(tmp_path))
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: library)
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "review_image_against_references", lambda observation, refs, **kwargs:
         reference_review_result(observation, review(refs), refs))
     class Planner:
