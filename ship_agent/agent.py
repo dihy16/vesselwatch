@@ -17,6 +17,7 @@ from langchain_core.runnables import RunnableConfig
 
 from .dates import DataSource, data_timezone, resolve_reference_date
 from .report_artifacts import render_carrier_artifact
+from .monitoring_artifacts import render_monitoring_artifact
 from .map_artifacts import render_map_artifact
 from .llm_context import messages_for_llm
 from .chat_area import chat_area_note
@@ -54,11 +55,13 @@ def _current_reports(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     reports = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name == "daily_carrier_report":
+        if isinstance(message, ToolMessage) and message.name in {"daily_carrier_report", "vessel_monitoring_report"}:
             if message.status == "error":
                 reports.clear()
             else:
                 report = json.loads(message.content)
+                if message.name == "vessel_monitoring_report" and (report.get("status") != "complete" or report.get("output_format") != "html"):
+                    continue
                 reports[(report["report_id"], report.get("output_format", "html"))] = report
     return list(reports.values())
 
@@ -71,7 +74,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -79,7 +82,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -154,9 +157,9 @@ pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh ch�
 reference_description rồi nói đó là quan sát độc lập.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
 khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
-investigate_false_carriers, investigate_carrier_detections hoặc investigate_carrier_hotspot,
+investigate_false_carriers, investigate_carrier_detections, investigate_carrier_hotspot hoặc vessel_monitoring_report,
 các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
-Riêng investigate_carrier_detections/investigate_carrier_hotspot KHÔNG gửi pixel của nhóm dài <300 m;
+Riêng investigate_carrier_detections/investigate_carrier_hotspot/vessel_monitoring_report KHÔNG gửi pixel của nhóm dài <300 m;
 nhóm đó chỉ được sàng lọc kích thước, không nói đã xem/đối chiếu ảnh của chúng.
 Đó là khối dữ liệu ảnh riêng cho lần gọi LLM hiện tại. Khi có khối image_url đó,
 bạn đang trực tiếp nhận ảnh; không nói
@@ -218,6 +221,30 @@ Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_expl
 đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
 bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
 Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
+Khi hỏi câu 20, báo cáo giám sát theo vùng/thời gian hoặc tổng hợp theo tháng
+kèm kiểm tra bằng chứng, dùng vessel_monitoring_report, không dùng riêng
+daily_carrier_report (chỉ đếm nhãn dương, không có vùng). Ngày bắt buộc; 30
+ngày qua gồm ngày tham chiếu và 29 ngày trước đó. Vùng chat dùng use_chat_area=true.
+Tool tính toàn phạm vi ba nhãn và kích thước, không cắt thống kê theo limit.
+Mỗi tháng trong khoảng yêu cầu được so với tháng dương lịch liền trước CÙNG
+vùng, kỳ đối chiếu có thể nằm ngoài ngày báo cáo. Ghi đúng các khoảng ngày,
+queried_days/partial_month; nhận xét xu hướng từ average_daily_count và
+comparison, không so thô hai tổng rồi coi tháng thiếu ngày là tháng đầy đủ.
+Baseline 0 => average_daily_change_pct=null, direction=no_baseline; báo số
+lượt hai kỳ, không gọi tăng vô hạn hoặc bịa phần trăm. Nêu theo từng nhãn khi
+cần từ comparison_by_classification. Đây là xu hướng lượt quan sát, không
+đủ để xác nhận thay đổi hoạt động tàu hoặc bất thường có ý nghĩa thống kê.
+review trong kết quả dùng đúng quy tắc câu 17; nhóm <300 m chỉ sàng lọc kích
+thước, nhóm còn lại mới đọc ảnh. Chỉ nêu flags do tool trả về, kèm ảnh/ID,
+lý do và dẫn mẫu; ảnh mờ/unknown không flag. Báo processed_count/reviewed_count,
+failed_count và coverage_complete/next_offset, các số review thuộc trang
+hiện tại. Thống kê có thể đầy đủ trong khi kiểm tra ảnh chưa đầy đủ hoặc lỗi.
+Không trộn snapshot khác khi tổng hợp nhiều trang. Không nói đã xem ảnh
+của nhóm 1 hoặc tự phát sinh thêm flags. Không sửa nhãn gốc.
+output_format=html mặc định: hệ thống gắn báo cáo HTML từ số liệu/bằng chứng
+của tool; viết nhận xét ngắn có số liệu về xu hướng và các trường hợp đã
+kiểm tra, không tự tạo/sửa HTML. output_format=json nếu chỉ muốn dữ liệu/
+bảng trong chat. Báo cáo này không cần chạy DBSCAN.
 Khi hỏi câu 18, tìm những khu vực có nhiều lượt nghi tàu sân bay, gọi
 find_carrier_hotspots với khoảng ngày được yêu cầu; '30 ngày qua' gồm ngày
 tham chiếu và 29 ngày trước đó. Bỏ vùng để tìm toàn nguồn; nếu chỉ tìm trong
@@ -299,7 +326,8 @@ search_ships tìm toàn bộ dữ liệu. Không tự thêm bộ lọc người 
 Đếm theo ngày không phải số tàu duy nhất của cả giai đoạn; không cộng các ngày
 rồi gọi tổng đó là số tàu duy nhất. Phân loại aircraft_carrier chỉ là kết quả mô hình.
 Trình bày thống kê bằng bảng. {confidence_note}
-Khi người dùng yêu cầu báo cáo hoặc biểu đồ/chart, dùng daily_carrier_report.
+Khi người dùng yêu cầu báo cáo/biểu đồ chỉ số lượt nhãn tàu sân bay theo ngày,
+dùng daily_carrier_report; báo cáo tổng hợp câu 20 dùng vessel_monitoring_report.
 Nếu yêu cầu ảnh chart PNG riêng hoặc biểu đồ trực tiếp trong chat, đặt output_format="png".
 Nếu yêu cầu báo cáo HTML Artifacts, đặt output_format="html" (mặc định).
 Tool này chỉ thống kê lượt dự đoán tàu sân bay; nêu rõ phạm vi này trong câu trả lời.
@@ -359,7 +387,9 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
         if (reports or maps) and not response.tool_calls:
             artifacts = []
             for report in reports:
-                if report.get("output_format") == "png":
+                if report.get("report_kind") == "vessel_monitoring":
+                    artifacts.append(f"```html\n{render_monitoring_artifact(report)}\n```")
+                elif report.get("output_format") == "png":
                     url = report["chart_url"]
                     if not re.search(r"!\[[^\]]*\]\(" + re.escape(url) + r"\)", response.text):
                         artifacts.append(f"![Biểu đồ lượt dự đoán tàu sân bay theo ngày]({url})")

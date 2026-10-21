@@ -23,6 +23,7 @@ from .false_carriers import (FalseCarrierRequest, candidate_query as false_candi
                              false_carrier_candidates)
 from .carrier_investigation import carrier_investigation_candidates
 from .carrier_hotspots import HotspotClusterRequest, build_hotspot_report, hotspot_cluster_candidates
+from .monitoring_reports import MonitoringRequest, monitoring_query, build_monitoring_report
 
 
 class AreaConfirmation(BaseModel):
@@ -212,6 +213,16 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
                 **hotspot_cluster_candidates(groups[body.cluster_id], body),
                 "report_id": body.report_id, "cluster_id": body.cluster_id,
                 "source_snapshot_id": record["snapshot_id"]}
+
+    @app.post("/vessel-monitoring-reports")
+    def vessel_monitoring_reports(body: MonitoringRequest, request: Request):
+        area = query_area(monitoring_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **build_monitoring_report(rows, body, source_snapshot_id=record["snapshot_id"],
+                                           geometry=geometry_for(record))}
 
     @app.post("/observation-analyses")
     def observation_analysis(body: ObservationAnalysisRequest, request: Request):
