@@ -6,6 +6,7 @@ import re
 from datetime import date
 from uuid import uuid4
 
+import httpx
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, MessagesState, StateGraph
@@ -20,6 +21,28 @@ from .map_artifacts import render_map_artifact
 from .llm_context import messages_for_llm
 from .chat_area import chat_area_note
 from .tools import create_tools
+from .visual_context import build_visual_content, latest_visual_input
+
+
+def _chat_visual_message(messages, observations, data_source):
+    try:
+        descriptor = latest_visual_input(messages)
+        if descriptor is None:
+            return None
+        from .carrier_reference_client import load_carrier_references
+        from .image_review import _image_bytes
+        from file_server.image_assets import normalize_image
+
+        content = build_visual_content(descriptor, observations,
+            load_references=load_carrier_references,
+            load_image=lambda row: normalize_image(_image_bytes(row, data_source, None))[0])
+        return HumanMessage(content=content)
+    except (ValueError, OSError, httpx.HTTPError, ToolException):
+        # Never leak request bodies or silently show a different reference revision.
+        return HumanMessage(content="direct_visual_context_unavailable: Chưa tải đủ pixel cho LLM chat; "
+                            "kiểm tra file server, ảnh và revision bộ mẫu. Lượt này bạn chưa xem ảnh trực tiếp; "
+                            "nêu rõ lỗi, không thay pixel bằng mô tả rồi nói đã xem. Không lặp tool liên tục; "
+                            "chỉ thử lại khi có yêu cầu hoặc nguồn đã được sửa.")
 
 
 def _current_reports(messages: list[BaseMessage]) -> list[dict]:
@@ -69,7 +92,9 @@ def build_agent(
     observations: list[dict] | None = None,
 ):
     reference_date = resolve_reference_date(reference_date, data_source)
-    tools = create_tools(reference_date, data_source=data_source, observations=observations)
+    visual_context_rows = []
+    tools = create_tools(reference_date, data_source=data_source, observations=observations,
+                         visual_context_rows=visual_context_rows)
     if model is None:
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("Chưa có OPENAI_API_KEY. Hãy cấu hình .env hoặc chạy --mock-tools.")
@@ -123,6 +148,23 @@ Ngày tham chiếu là {reference_date.isoformat()}, múi giờ {data_timezone(d
 {map_note}
 Dùng count_ships cho thống kê theo ngày; search_ships cho danh sách, kích thước,
 phân loại hoặc xem riêng ship_id. Luôn dùng tool để lấy dữ liệu, không tự bịa số.
+Khi hỏi xem, mô tả hoặc so sánh lại bộ ảnh mẫu/ref1/ref2, gọi view_carrier_references
+nếu tool có sẵn, kể cả đã xem ở lượt trước. Tool này mở toàn bộ bộ mẫu cho bạn xem
+pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh chứ không chép lại
+reference_description rồi nói đó là quan sát độc lập.
+Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
+khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
+các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
+Đó là khối dữ liệu ảnh riêng cho lần gọi LLM hiện tại. Khi có khối image_url đó,
+bạn đang trực tiếp nhận ảnh; không nói
+rằng chỉ có thể đọc nhận xét của vision tool. Phân biệt nhận xét của bạn từ pixel,
+nhận xét vision trong tool và prediction đã lưu. Chỉ đối chiếu hình dáng tổng thể
+và màu sắc phần thân, không dùng bóng/vệt nước hoặc suy đoán chi tiết nhỏ.
+Nhận xét trực tiếp không tự thay flags đã được tool kiểm tra; có mâu thuẫn thì
+nêu để kiểm tra lại. Không tự phát sinh flag từ cảm nhận của LLM chat.
+Ảnh được tải cho lượt cần xem, không coi văn bản lịch sử là pixel vẫn đang có.
+Nếu direct_visual_context_unavailable thì báo chưa xem được ảnh trực tiếp, không
+khẳng định đã nhận pixel hay bộ mẫu chỉ dựa vào tên/URL/mô tả.
 Khi hỏi bằng chứng ủng hộ/mâu thuẫn một observation là tàu sân bay, hoặc 'vì sao
 được nhận dạng', tìm đúng observation_id rồi gọi review_ship_images với
 use_carrier_references=true. Không dùng bộ lọc nhãn âm/score/chiều dài của 14a
@@ -237,10 +279,21 @@ Khi nguồn dữ liệu báo lỗi, nói rõ chưa truy vấn được; không s
         if area_note:
             messages.append(SystemMessage(content=area_note))
         messages.extend(messages_for_llm(state["messages"]))
-        response = llm_with_tools.invoke(
-            messages,
-            config={"tags": ["nostream"]} if reports or maps or demo_images_requested else None,
-        )
+        visual_message = _chat_visual_message(state["messages"], visual_context_rows, data_source)
+        if visual_message is not None:
+            # Ephemeral multimodal input: never checkpoint base64 or emit it to the UI.
+            messages.append(visual_message)
+        try:
+            response = llm_with_tools.invoke(
+                messages,
+                config={"tags": ["nostream"]} if reports or maps or demo_images_requested else None,
+            )
+        except Exception:
+            if visual_message is not None and isinstance(visual_message.content, list):
+                raise RuntimeError("LLM chat chưa xử lý được yêu cầu có ảnh. Kiểm tra OPENAI_MODEL, "
+                                   "OPENAI_BASE_URL, hỗ trợ vision/tool calls và giới hạn số ảnh/context. "
+                                   "Không tự chuyển sang trả lời chỉ từ mô tả.") from None
+            raise
         if (reports or maps) and not response.tool_calls:
             artifacts = []
             for report in reports:

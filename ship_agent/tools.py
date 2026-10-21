@@ -76,7 +76,7 @@ def _date_range(start: str | None, end: str | None) -> tuple[date | None, date |
 
 
 def create_tools(reference_date: date | None = None, *, data_source: DataSource = "file_server",
-                 observations: list[dict] | None = None):
+                 observations: list[dict] | None = None, visual_context_rows: list[dict] | None = None):
     """Load a complete snapshot at creation, or reuse a preloaded server snapshot."""
     anchor = resolve_reference_date(reference_date, data_source)
     is_mock = data_source == "mock"
@@ -88,6 +88,9 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         demo_snapshot = read_snapshot()
     elif observations is None:
         observations = load_observations()
+    if visual_context_rows is not None:
+        # Share exactly the tool snapshot with the graph's model-only pixel loader.
+        visual_context_rows.extend(observations)
     metadata = {"is_mock": is_mock, "reference_date": anchor.isoformat(), "timezone": data_timezone(data_source)}
     if data_source == "demo":
         metadata.update(is_demo=True, data_scope="selected_demo_subset",
@@ -360,8 +363,9 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         query_tools.append(analyze_ship_observations)
 
     if not is_mock:
-        from .image_review import create_image_review_tool
+        from .image_review import create_image_review_tool, create_reference_view_tool
         query_tools.append(create_image_review_tool(observations, data_source=data_source))
+        query_tools.append(create_reference_view_tool())
     if data_source == "file_server":
         from .missed_carrier_tool import create_missed_carrier_tool
         query_tools.append(create_missed_carrier_tool())

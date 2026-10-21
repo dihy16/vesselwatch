@@ -21,6 +21,7 @@ from .reference_review import CarrierReferenceReview, reference_review_content, 
 from .carrier_reference_client import load_carrier_references
 from .observation_evidence import build_observation_evidence
 from .pair_evidence import build_pair_evidence, validate_observation_pair
+from .visual_context import attach_visual_input
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
@@ -201,17 +202,40 @@ def create_image_review_tool(observations, *, data_source):
             if second is not None:
                 second_reviewed = review_image_against_references(second, library, data_source=data_source)
                 try:
-                    return build_pair_evidence(observation, second, reviewed, second_reviewed,
-                                               library, similarity_tolerance_pct)
+                    result = build_pair_evidence(observation, second, reviewed, second_reviewed,
+                                                 library, similarity_tolerance_pct)
+                    return attach_visual_input(result, [observation, second], library)
                 except ValueError as exc:
                     raise ToolException("Bằng chứng cặp ảnh không khớp observations hoặc cùng bộ mẫu; chưa so sánh được.") from exc
             try:
-                return build_observation_evidence(observation, reviewed, library)
+                result = build_observation_evidence(observation, reviewed, library)
+                return attach_visual_input(result, [observation], library)
             except ValueError as exc:
                 raise ToolException("Bằng chứng ảnh không khớp observation hoặc bộ mẫu; chưa tổng hợp được.") from exc
-        return review_image(observation, data_source=data_source)
+        return attach_visual_input(review_image(observation, data_source=data_source), [observation])
 
     return review_ship_images
+
+
+def create_reference_view_tool():
+    @tool
+    def view_carrier_references() -> dict:
+        """Mở toàn bộ ảnh mẫu tàu sân bay để LLM chat xem pixel và mô tả trực tiếp.
+
+        Dùng khi hỏi xem/mô tả/so sánh lại bộ mẫu, ref1, ref2 hoặc ảnh tham chiếu.
+        Không cần observation_id; không phân loại tàu hoặc tạo flag. Trả danh sách
+        ID/tên cùng revision để hệ thống đưa TẤT CẢ ảnh mẫu vào lần gọi LLM kế tiếp.
+        """
+        try:
+            library = load_carrier_references()
+        except (httpx.HTTPError, OSError, ValueError) as exc:
+            raise ToolException("Chưa mở được bộ mẫu; kiểm tra CARRIER_REFERENCE_DIR và file server.") from exc
+        return attach_visual_input({"status": "ready", "reference_revision": library.revision,
+            "reference_count": len(library.images), "reference_description": library.description,
+            "reference_images": [{"reference_id": image.reference_id, "name": image.name}
+                                 for image in library.images]}, library=library)
+
+    return view_carrier_references
 
 
 def review_image_against_references(observation, library, *, data_source="file_server", model=None, transport=None):

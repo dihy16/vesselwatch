@@ -165,3 +165,42 @@ nhưng khác nhãn; đối chiếu từng ảnh với bộ mẫu để phân tí
 
 Dùng lại folder/API bộ mẫu hiện có. Sau khi pull code câu 15, restart LangGraph;
 không cần đổi Pipe hoặc cấu hình map.
+
+## LLM chat trực tiếp xem ảnh và mở lại bộ mẫu
+
+LLM chat nhận pixel của ảnh mục tiêu và toàn bộ ảnh mẫu sau khi tool phân tích
+trả thành công. Câu 13 gửi một ảnh mục tiêu; câu 15 gửi cả hai ảnh. Với 14a,
+gửi các ảnh đã được tool đọc thành công trong trang cùng toàn bộ bộ mẫu;
+các lỗi và phạm vi phân trang vẫn được báo riêng. Luồng review độc lập không
+dùng bộ mẫu cũng gửi pixel ảnh mục tiêu cho LLM chat.
+
+Tool `view_carrier_references` mở riêng toàn bộ bộ mẫu, không cần observation.
+Thử: “Mở lại toàn bộ ảnh mẫu, mô tả trực tiếp hình dáng và màu sắc của từng ảnh,
+kèm tên file và reference_id.” LLM cần gọi tool này để xem lại ảnh ở lượt mới;
+văn bản trong lịch sử không thay cho ảnh đang được gửi vào model.
+
+Tool trả ID ảnh và revision, không ghi base64 vào lịch sử chat. Trước lần gọi
+model, LangGraph tải pixel qua backend đã cấu hình, xác minh đúng observation,
+image_id và revision bộ mẫu, rồi thêm một message ảnh chỉ dành cho đầu vào model.
+Message này không lưu vào state/checkpoint, không gửi sang Open WebUI và không
+bị bộ lọc HTML artifact loại bỏ. Các tool ảnh gọi song song dùng cùng bộ mẫu
+được gộp để không lặp ảnh. Không tự cắt bớt bộ mẫu; nếu tải một ảnh lỗi hoặc
+revision thay đổi thì báo chưa tải đủ ảnh trực tiếp, không ghép bộ mẫu khác.
+
+`OPENAI_MODEL` và `OPENAI_BASE_URL` của **LLM chat** phải hỗ trợ cả ảnh và tool
+calls. `OPENAI_VISION_*` vẫn cấu hình model review có cấu trúc trong tool;
+chỉ cấu hình các biến vision không làm model chat tự có khả năng đọc ảnh.
+Nếu model chat từ chối đầu vào ảnh/context quá lớn, graph báo lỗi, không tự
+quay về trả lời từ văn bản. Có thể chọn trang mục tiêu nhỏ hơn bằng `limit`;
+toàn bộ ảnh mẫu vẫn được gửi. Luồng này có thêm chi phí đầu vào ảnh ở LLM chat.
+
+LLM chat phân biệt quan sát trực tiếp, nhận xét review của tool và prediction
+đã lưu. Chỉ đối chiếu hình dáng tổng thể/màu phần thân; bỏ bóng/vệt nước.
+Nhận xét bổ sung không tự sửa prediction hay phát sinh/thay flags do tool
+kiểm tra. Nếu nhận xét mâu thuẫn thì nêu để người dùng kiểm tra lại.
+
+Sau `git pull`, restart LangGraph; không cần sửa Pipe/Open WebUI hoặc endpoint
+file server cho bước này. Thử câu hỏi về bộ mẫu ở trên và câu hỏi phân tích cặp
+ở câu 15. Unit test kiểm tra đầy đủ pixel; test provider/graph dùng HTTPX
+MockTransport để kiểm tra body thực tế của request chat và mở lại qua lượt mới.
+Chưa có xác minh vision thực tế trên MID chỉ từ các kiểm tra offline.

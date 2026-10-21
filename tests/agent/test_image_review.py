@@ -135,7 +135,10 @@ def test_tool_looks_up_exact_observation_and_excludes_mock(observation, monkeypa
     calls = []
     monkeypatch.setattr(image_review, "review_image", lambda row, **kwargs: calls.append(row) or {"ok": True})
     tool = next(t for t in create_tools(observations=[observation]) if t.name == "review_ship_images")
-    assert tool.invoke({"observation_id": "OBS_one"}) == {"ok": True}
+    result = tool.invoke({"observation_id": "OBS_one"})
+    assert result["ok"] is True
+    assert result["visual_input"]["targets"] == [{"observation_id": "OBS_one",
+                                                 "image_id": observation["images"][0]["image_id"]}]
     assert calls == [observation]
     with pytest.raises(ToolException, match="Không tìm thấy"):
         tool.invoke({"observation_id": "SHIP_one"})

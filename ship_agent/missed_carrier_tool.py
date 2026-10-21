@@ -10,6 +10,7 @@ from .area_client import request_missed_carrier_candidates
 from .carrier_reference_client import load_carrier_references
 from .chat_area import apply_chat_area, chat_area_context
 from .reference_review import run_reference_reviews
+from .visual_context import attach_visual_input
 
 
 class MissedCarrierToolInput(MissedCarrierScope):
@@ -66,6 +67,10 @@ def create_missed_carrier_tool():
         model = _vision_model()
         result = run_reference_reviews(candidates, library, lambda row, refs:
             review_image_against_references(row, refs, model=model))
+        reviewed_ids = {item["observation_id"] for item in result["flags"] + result["unflagged"]}
+        if reviewed_ids:
+            result = attach_visual_input(result, [row for row in candidates["ships"]
+                                                  if row["observation_id"] in reviewed_ids], library)
         if use_chat_area:
             result.update(query_scope="chat_active_area", chat_area_revision=context["revision"])
         return result

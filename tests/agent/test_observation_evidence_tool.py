@@ -36,7 +36,9 @@ def test_reference_mode_accepts_positive_short_observation_and_preserves_default
     monkeypatch.setattr(image_review, "review_image_against_references", compare)
     monkeypatch.setattr(image_review, "review_image", lambda observation, **_: {"legacy": observation["observation_id"]})
     tool = create_image_review_tool([row], data_source="file_server")
-    assert tool.invoke({"observation_id": "a"}) == {"legacy": "a"}
+    generic = tool.invoke({"observation_id": "a"})
+    assert generic["legacy"] == "a"
+    assert generic["visual_input"]["reference_revision"] is None
     assert not loaded and not compared
     result = tool.invoke({"observation_id": "a", "use_carrier_references": True})
     assert result["review_mode"] == "carrier_reference_evidence"
