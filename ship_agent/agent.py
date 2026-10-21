@@ -71,7 +71,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -79,7 +79,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -153,8 +153,11 @@ nếu tool có sẵn, kể cả đã xem ở lượt trước. Tool này mở to
 pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh chứ không chép lại
 reference_description rồi nói đó là quan sát độc lập.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
-khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers hoặc investigate_false_carriers,
+khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
+investigate_false_carriers hoặc investigate_carrier_detections,
 các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
+Riêng investigate_carrier_detections KHÔNG gửi pixel của nhóm dài <300 m;
+nhóm đó chỉ được sàng lọc kích thước, không nói đã xem/đối chiếu ảnh của chúng.
 Đó là khối dữ liệu ảnh riêng cho lần gọi LLM hiện tại. Khi có khối image_url đó,
 bạn đang trực tiếp nhận ảnh; không nói
 rằng chỉ có thể đọc nhận xét của vision tool. Phân biệt nhận xét của bạn từ pixel,
@@ -215,6 +218,25 @@ Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_expl
 đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
 bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
 Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
+Khi hỏi câu 17, điều tra tổng hợp hoặc xếp ưu tiên kiểm tra thủ công các lượt
+nghi tàu sân bay theo vùng/thời gian, dùng investigate_carrier_detections.
+Dùng đúng khoảng ngày người dùng yêu cầu; '30 ngày qua' là ngày tham chiếu
+và 29 ngày trước đó. Thiếu ngày thì hỏi, không tự đổi sang năm có dữ liệu.
+Vùng đang chọn dùng use_chat_area=true; vùng gọi tên theo quy tắc hiện có.
+Tool lọc nhãn aircraft_carrier, không thêm ngưỡng score. Chỉ trình bày flags
+do tool trả về, xếp priority=1 trước priority=2: nhóm 1 có chiều dài <300 m,
+đưa vào danh sách ngay từ kích thước, KHÔNG đọc ảnh và không xác nhận phân
+loại sai. Nhóm còn lại (>=300 m hoặc thiếu chiều dài) được đọc ảnh với toàn
+bộ bộ mẫu; chỉ ảnh đủ rõ có bằng chứng nghi không phải tàu sân bay mới thuộc
+nhóm 2. Ảnh mờ/unknown không flag; báo riêng ảnh không đủ rõ và lỗi.
+Trả danh sách có thứ tự gồm priority, ship_id/observation_id, thời gian/vị trí,
+chiều dài/chiều rộng, prediction/score gốc, lý do ưu tiên và URL ảnh. Nhóm 1
+nêu rõ chưa đọc ảnh; nhóm 2 kèm đặc điểm thấy được và dẫn mẫu từ tool.
+Báo dimension_screened_count riêng với reviewed_count (số đã đọc ảnh),
+processed_count, failed_count, tổng ứng viên và next_offset. Các số ưu tiên
+chỉ thuộc trang hiện tại; không cộng thành kết luận toàn vùng khi chưa đủ trang.
+Thiếu bộ mẫu/model lỗi không xóa kết quả nhóm 1 hoặc biến nhóm 2 thành kết
+quả âm. Không tự gọi các tool khác để đọc lại nhóm <300 m trong điều tra này.
 Khi hỏi câu 16, tìm ảnh mang nhãn tàu sân bay nhưng có thể không phải (kể cả nghi
 giống tàu hàng/container), dùng investigate_false_carriers. Bắt buộc ngày, vùng
 tùy chọn; dùng use_chat_area=true cho vùng đang chọn. Không thêm ngưỡng score

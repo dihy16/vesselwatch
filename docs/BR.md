@@ -32,7 +32,7 @@
 
 ## Level 5 — Điều tra đa bước và tổng hợp
 
-- [ ] 17. Hãy điều tra các trường hợp phát hiện tàu nghi là tàu sân bay trong khu vực X trong 30 ngày qua, đối chiếu ảnh vệ tinh, kích thước và kết quả nhận dạng để xác định những trường hợp cần ưu tiên kiểm tra thủ công.
+- [x] 17. Hãy điều tra các lượt được phân loại là tàu sân bay trong khu vực X trong 30 ngày qua (hoặc khoảng ngày được chỉ định): ưu tiên 1 là chiều dài <300 m, đưa vào danh sách ngay không đọc ảnh; phần còn lại đối chiếu toàn bộ bộ mẫu, ưu tiên 2 là ảnh đủ rõ có bằng chứng nghi không phải tàu sân bay. Ảnh mờ/unknown không flag; báo rõ phạm vi, phân trang và lỗi.
 - [ ] 18. Hãy xác định những khu vực có nhiều lượt phát hiện tàu nghi là tàu sân bay trong 30 ngày qua. Phân tích phân bố theo vị trí, thời gian, kích thước và độ tin cậy, sau đó chọn các trường hợp đáng chú ý để kiểm tra chi tiết.
 - [ ] 19. Hãy điều tra các trường hợp mô hình nhận dạng chưa chắc chắn trong khu vực X: tìm các trường hợp tiêu biểu, phân tích nguyên nhân có thể xảy ra, thống kê theo nhóm và đề xuất những trường hợp cần bổ sung nhãn.
 - [ ] 20. Hãy lập báo cáo giám sát tàu khả nghi tại khu vực X trong 30 ngày qua: thống kê lượt phát hiện theo thời gian, kích thước và kết quả phân loại; xác định các xu hướng hoặc bất thường đáng chú ý; kiểm tra những trường hợp liên quan và tổng hợp nhận định kèm bằng chứng.

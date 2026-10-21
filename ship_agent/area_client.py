@@ -84,3 +84,20 @@ def request_missed_carrier_candidates(query: dict, *, transport=None):
 def request_false_carrier_candidates(query: dict, *, transport=None):
     return _request_review_candidates(query, endpoint="false-carrier-candidates", transport=transport,
         matches=lambda row: row["classification"] == "aircraft_carrier")
+
+
+def request_carrier_investigation_candidates(query: dict, *, transport=None):
+    from file_server.carrier_investigation import LENGTH_THRESHOLD_M, dimension_priority
+    result = _request_review_candidates(query, endpoint="carrier-investigation-candidates", transport=transport,
+        matches=lambda row: row["classification"] == "aircraft_carrier")
+    if result["status"] != "complete":
+        return result
+    short, visual = result.get("dimension_candidate_count"), result.get("visual_candidate_count")
+    if (type(short) is not int or type(visual) is not int or min(short, visual) < 0
+            or short + visual != result["total"] or result.get("length_threshold_m") != LENGTH_THRESHOLD_M):
+        raise ValueError("Invalid investigation group counts or size rule.")
+    expected_short = min(max(0, short - result["offset"]), len(result["ships"]))
+    if any(dimension_priority(row) != (index < expected_short)
+           for index, row in enumerate(result["ships"])):
+        raise ValueError("Investigation page does not preserve dimension-first ordering.")
+    return result

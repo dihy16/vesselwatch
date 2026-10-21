@@ -369,8 +369,10 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
     if data_source == "file_server":
         from .missed_carrier_tool import create_missed_carrier_tool
         from .false_carrier_tool import create_false_carrier_tool
+        from .carrier_investigation_tool import create_carrier_investigation_tool
         query_tools.append(create_missed_carrier_tool())
         query_tools.append(create_false_carrier_tool())
+        query_tools.append(create_carrier_investigation_tool())
 
     for query_tool in query_tools:
         query_tool.description += f"\nMúi giờ: {metadata['timezone']}. {source_description}"
