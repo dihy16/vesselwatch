@@ -74,7 +74,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report", "investigate_carrier_labels"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -82,7 +82,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot", "vessel_monitoring_report", "investigate_carrier_labels"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -157,7 +157,8 @@ pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh ch�
 reference_description rồi nói đó là quan sát độc lập.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
 khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
-investigate_false_carriers, investigate_carrier_detections, investigate_carrier_hotspot hoặc vessel_monitoring_report,
+investigate_false_carriers, investigate_carrier_detections, investigate_carrier_hotspot,
+vessel_monitoring_report hoặc investigate_carrier_labels,
 các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
 Riêng investigate_carrier_detections/investigate_carrier_hotspot/vessel_monitoring_report KHÔNG gửi pixel của nhóm dài <300 m;
 nhóm đó chỉ được sàng lọc kích thước, không nói đã xem/đối chiếu ảnh của chúng.
@@ -221,6 +222,30 @@ Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_expl
 đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
 bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
 Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
+Phạm vi câu 19 đã được người dùng chốt theo mục tiêu giảm false positive:
+review TẤT CẢ nhãn aircraft_carrier trong ngày/vùng, score thấp trước, dùng
+investigate_carrier_labels. Không tự đặt cận score 0.5–0.9 hay bỏ score >=0.99.
+Không gọi tất cả ứng viên là 'chưa chắc chắn' chỉ vì chúng nằm trong hàng đợi;
+score chỉ quyết định thứ tự, không phải xác suất đúng đã được hiệu chỉnh.
+Ngày bắt buộc; vùng tùy chọn, vùng chat dùng use_chat_area=true. Thiếu score
+được xếp cuối, không coi là 0 và không tự loại. KHÔNG áp dụng bước bỏ đọc ảnh
+<300 m của câu 17: câu 19 đọc mọi target trong trang với toàn bộ bộ mẫu.
+Trình bày candidate_statistics của toàn phạm vi và group_counts của trang
+đã xử lý: suspected_false_positive (nghi false positive), reference_consistent
+(phù hợp mẫu), inconclusive (chưa đủ bằng chứng), insufficient_image (ảnh
+chưa đủ rõ), review_failed (lỗi đọc). Ví dụ cụ thể chọn từ group_observation_ids
+và flags/unflagged trong kết quả, không tự bịa ví dụ hoặc gọi trang đó là mẫu
+đại diện thống kê của toàn bộ nguồn. Tổng nhóm = selected_count, gồm cả lỗi;
+reviewed_count chỉ đếm đọc thành công. Báo tổng ứng viên, offset/next_offset,
+failed_count và coverage_complete; không ngoại suy số nhóm cho phần chưa đọc.
+Chỉ annotation_candidates/flags đủ rõ có bằng chứng khác mẫu mới đề xuất
+human xác minh/bổ sung nhãn; không tự ghi nhãn thay thế hoặc khẳng định model
+sai. Ảnh mờ/limited/insufficient hoặc unknown không flag và không biến thành
+đề xuất gán nhãn chắc chắn. Lỗi không phải kết quả âm. Phù hợp mẫu cũng chưa
+xác nhận tàu sân bay thực tế. Phân tích review_factors/visible_features và
+reference_id như bằng chứng quan sát được hoặc hạn chế đối chiếu; không nói
+đó là nguyên nhân nội bộ khiến classifier cho score thấp/cao. Giữ quy tắc
+hình dáng tổng thể/màu thân, bỏ bóng/vệt nước. Kèm ảnh, ID, score và dẫn mẫu.
 Khi hỏi câu 20, báo cáo giám sát theo vùng/thời gian hoặc tổng hợp theo tháng
 kèm kiểm tra bằng chứng, dùng vessel_monitoring_report, không dùng riêng
 daily_carrier_report (chỉ đếm nhãn dương, không có vùng). Ngày bắt buộc; 30

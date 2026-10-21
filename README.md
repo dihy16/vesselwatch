@@ -4,6 +4,7 @@ Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, scor
 xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
 Luồng câu 17: [điều tra và xếp ưu tiên kiểm tra thủ công](docs/carrier_investigation.md).
 Luồng câu 18: [tìm cụm DBSCAN và kiểm tra chi tiết](docs/carrier_hotspots.md).
+Luồng câu 19: [kiểm tra nhãn, chia nhóm và đề xuất xác minh thủ công](docs/label_review.md).
 Luồng câu 20: [báo cáo giám sát và so sánh theo tháng](docs/monitoring_reports.md).
 Câu 13 dùng lại `review_ship_images(use_carrier_references=true)` cho một
 observation bất kỳ để tổng hợp bằng chứng ảnh, số đo và prediction.

@@ -21,11 +21,12 @@ from tests.file_server.test_carrier_references import png, reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
 
 
-@pytest.mark.parametrize("mode", ["references", "single", "pair", "generic", "investigation", "false-investigation", "priority-investigation", "hotspot-investigation", "monitoring-report"])
+@pytest.mark.parametrize("mode", ["references", "single", "pair", "generic", "investigation", "false-investigation", "priority-investigation", "hotspot-investigation", "monitoring-report", "label-review"])
 def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(tmp_path, monkeypatch, mode):
     from ship_agent import carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool
-    from ship_agent import hotspot_tools, monitoring_tool
+    from ship_agent import hotspot_tools, monitoring_tool, label_review_tool
     from tests.integration.test_monitoring_client import payload as monitoring_payload
+    from tests.integration.test_label_review_client import payload as label_review_payload
     from tests.integration.test_false_carrier_client import positive_payload
     from tests.agent.test_carrier_investigation_workflow import candidates
     from tests.agent.test_false_carrier_evidence import visual
@@ -41,11 +42,13 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
         rows = candidates([100, 300])["ships"]
     elif mode == "monitoring-report":
         rows = monitoring_payload()["ships"]
-    for module in (carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool, hotspot_tools, monitoring_tool):
+    elif mode == "label-review":
+        rows = label_review_payload()["ships"]
+    for module in (carrier_reference_client, image_review, missed_carrier_tool, false_carrier_tool, carrier_investigation_tool, hotspot_tools, monitoring_tool, label_review_tool):
         monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_image_bytes", lambda row, *_: png("green" if row is rows[0] else "blue"))
     monkeypatch.setattr(image_review, "review_image_against_references", lambda row, refs, **kwargs:
-        visual(row, refs) if mode in {"priority-investigation", "hotspot-investigation", "monitoring-report"} else
+        visual(row, refs) if mode in {"priority-investigation", "hotspot-investigation", "monitoring-report", "label-review"} else
         reviewed(row, refs, "not_aircraft_carrier" if mode == "false-investigation" else "aircraft_carrier"))
     monkeypatch.setattr(image_review, "review_image", lambda row, **kwargs: {"observation_id": row["observation_id"]})
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -54,6 +57,7 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
     monkeypatch.setattr(carrier_investigation_tool, "request_carrier_investigation_candidates", lambda _: candidates([100, 300]))
     monkeypatch.setattr(hotspot_tools, "request_carrier_hotspot_candidates", lambda _: candidates([100, 300]))
     monkeypatch.setattr(monitoring_tool, "request_monitoring_report", lambda _: monitoring_payload())
+    monkeypatch.setattr(label_review_tool, "request_label_review_candidates", lambda _: label_review_payload())
     name, args = "review_ship_images", {"observation_id": rows[0]["observation_id"], "use_carrier_references": mode != "generic"}
     targets = rows[:1]
     if mode == "references":
@@ -72,6 +76,8 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
                                                            "report_id": "a" * 64, "cluster_id": "b" * 32}, rows[1:]
     elif mode == "monitoring-report":
         name, args, targets = "vessel_monitoring_report", {"observed_from": "2025-01-01", "observed_to": "2025-02-28"}, rows[1:]
+    elif mode == "label-review":
+        name, args, targets = "investigate_carrier_labels", {"observed_from": "2025-01-01", "observed_to": "2025-12-31"}, rows
     requests = []
     def respond(request):
         body = json.loads(request.content)
@@ -99,6 +105,10 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
                 result = json.loads(tool_result["content"])
                 assert result["statistics"]["detection_count"] == 4
                 assert [item["priority"] for item in result["review"]["flags"]] == [1, 2]
+            elif mode == "label-review":
+                result = json.loads(tool_result["content"])
+                assert result["group_counts"]["suspected_false_positive"] == 3
+                assert result["annotation_candidate_count"] == 3
             answer, finish = {"role": "assistant", "content": "Đã xem trực tiếp ảnh trong lượt này."}, "stop"
         return httpx.Response(200, json={"id": "direct", "object": "chat.completion", "created": 0,
             "model": "chat-test", "choices": [{"index": 0, "finish_reason": finish, "message": answer}]})

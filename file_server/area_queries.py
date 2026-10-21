@@ -24,6 +24,7 @@ from .false_carriers import (FalseCarrierRequest, candidate_query as false_candi
 from .carrier_investigation import carrier_investigation_candidates
 from .carrier_hotspots import HotspotClusterRequest, build_hotspot_report, hotspot_cluster_candidates
 from .monitoring_reports import MonitoringRequest, monitoring_query, build_monitoring_report
+from .label_review import label_review_candidates
 
 
 class AreaConfirmation(BaseModel):
@@ -223,6 +224,16 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
                 **build_monitoring_report(rows, body, source_snapshot_id=record["snapshot_id"],
                                            geometry=geometry_for(record))}
+
+    @app.post("/carrier-label-review-candidates")
+    def carrier_label_review_candidates(body: FalseCarrierRequest, request: Request):
+        area = query_area(false_candidate_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **label_review_candidates(rows, body, geometry_for(record)),
+                "source_snapshot_id": record["snapshot_id"]}
 
     @app.post("/observation-analyses")
     def observation_analysis(body: ObservationAnalysisRequest, request: Request):

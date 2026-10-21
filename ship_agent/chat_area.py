@@ -60,7 +60,7 @@ def chat_area_note(config):
         "câu hỏi về vùng đã chọn, gọi tool phù hợp (query_ships_in_area hoặc "
         "analyze_ship_observations, investigate_missed_carriers, investigate_false_carriers "
         "investigate_carrier_detections, find_carrier_hotspots, investigate_carrier_hotspot "
-        "hoặc vessel_monitoring_report) với use_chat_area=true, "
+        "vessel_monitoring_report hoặc investigate_carrier_labels) với use_chat_area=true, "
         "bỏ area_name và area_id. Không lấy mã vùng cũ từ lịch sử. "
         "Chỉ xử lý một vùng mỗi truy vấn; nếu yêu cầu nhiều vùng hãy yêu cầu chọn một. "
         "Nếu hỏi rõ một khu vực khác, dùng area_name theo quy tắc vùng định nghĩa sẵn/tự vẽ. "
