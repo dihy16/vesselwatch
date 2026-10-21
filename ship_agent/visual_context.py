@@ -6,7 +6,7 @@ import re
 
 
 VISUAL_TOOLS = {"review_ship_images", "investigate_missed_carriers", "investigate_false_carriers",
-                "investigate_carrier_detections", "view_carrier_references"}
+                "investigate_carrier_detections", "investigate_carrier_hotspot", "view_carrier_references"}
 
 
 def attach_visual_input(result, observations=(), library=None):

@@ -101,9 +101,10 @@ def test_loading_failure_is_not_a_partial_pixel_message(library):
         build_visual_content(descriptor, rows, load_references=lambda: library, load_image=fail_second)
 
 
-def test_dimension_only_investigation_does_not_resurrect_previous_visual_inputs(library):
+@pytest.mark.parametrize("tool_name", ["investigate_carrier_detections", "investigate_carrier_hotspot"])
+def test_dimension_only_investigation_does_not_resurrect_previous_visual_inputs(library, tool_name):
     descriptor = attach_visual_input({}, list(pair_rows()), library)["visual_input"]
     history = [message("human"), message("ai"), message("tool", descriptor), message("ai")]
-    assert latest_visual_input([*history, message("tool", name="investigate_carrier_detections")]) is None
+    assert latest_visual_input([*history, message("tool", name=tool_name)]) is None
     assert latest_visual_input([message("human"), message("ai"), message("tool", descriptor,
-        name="investigate_carrier_detections")]) == descriptor
+        name=tool_name)]) == descriptor

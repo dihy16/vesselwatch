@@ -3,6 +3,7 @@
 Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, score ≤0,01, dài ≥250 m):
 xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
 Luồng câu 17: [điều tra và xếp ưu tiên kiểm tra thủ công](docs/carrier_investigation.md).
+Luồng câu 18: [tìm cụm DBSCAN và kiểm tra chi tiết](docs/carrier_hotspots.md).
 Câu 13 dùng lại `review_ship_images(use_carrier_references=true)` cho một
 observation bất kỳ để tổng hợp bằng chứng ảnh, số đo và prediction.
 

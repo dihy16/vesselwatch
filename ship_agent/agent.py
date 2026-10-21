@@ -71,7 +71,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
         turn.append(message)
     maps = {}
     for message in reversed(turn):
-        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections"}:
+        if isinstance(message, ToolMessage) and message.name in {"create_vessel_map", "query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot"}:
             if message.status == "error":
                 maps.clear()
             else:
@@ -79,7 +79,7 @@ def _current_maps(messages: list[BaseMessage]) -> list[dict]:
                 if result.get("persistent_map"):
                     # The user already has the chat-linked map mounted in Artifacts.
                     continue
-                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections"}:
+                if message.name in {"query_ships_in_area", "analyze_ship_observations", "investigate_missed_carriers", "investigate_false_carriers", "investigate_carrier_detections", "find_carrier_hotspots", "investigate_carrier_hotspot"}:
                     maps = {key: value for key, value in maps.items() if value.get("status") != "needs_drawing"}
                 if message.name == "create_vessel_map" or result.get("status") == "needs_drawing":
                     maps[result.get("map_id", result.get("selection_id"))] = result
@@ -154,9 +154,9 @@ pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh ch�
 reference_description rồi nói đó là quan sát độc lập.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
 khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
-investigate_false_carriers hoặc investigate_carrier_detections,
+investigate_false_carriers, investigate_carrier_detections hoặc investigate_carrier_hotspot,
 các TARGET được review thành công trong trang cũng được gửi cùng toàn bộ REFERENCE.
-Riêng investigate_carrier_detections KHÔNG gửi pixel của nhóm dài <300 m;
+Riêng investigate_carrier_detections/investigate_carrier_hotspot KHÔNG gửi pixel của nhóm dài <300 m;
 nhóm đó chỉ được sàng lọc kích thước, không nói đã xem/đối chiếu ảnh của chúng.
 Đó là khối dữ liệu ảnh riêng cho lần gọi LLM hiện tại. Khi có khối image_url đó,
 bạn đang trực tiếp nhận ảnh; không nói
@@ -218,6 +218,31 @@ Chỉ nêu đặc điểm có thể liên quan đến khác nhãn nếu can_expl
 đánh giá đối lập nhãn gốc, hoặc ảnh mờ thì nêu rõ chưa giải thích được khác biệt
 bằng chứng đã đọc; không bịa khác biệt, không kết luận nhãn gốc sai hay cùng một tàu.
 Không có cặp phù hợp/thiếu bộ mẫu/lỗi đọc một ảnh thì báo rõ, không tự tạo ví dụ.
+Khi hỏi câu 18, tìm những khu vực có nhiều lượt nghi tàu sân bay, gọi
+find_carrier_hotspots với khoảng ngày được yêu cầu; '30 ngày qua' gồm ngày
+tham chiếu và 29 ngày trước đó. Bỏ vùng để tìm toàn nguồn; nếu chỉ tìm trong
+vùng hiện tại thì use_chat_area=true. DBSCAN đã chốt eps=30 km, min_samples=2,
+dùng tọa độ địa lý và Haversine, không tự đổi ngưỡng hoặc đếm từ một trang tàu.
+Xếp cụm theo detection_count giảm dần, gọi tên Cụm 1/Cụm 2 theo tool và nêu
+tọa độ phạm vi, không tự gán tên địa danh. Đây là số lượt quan sát trong khoảng
+ngày, không phải tàu duy nhất, mật độ tàu thực tế hoặc bằng chứng hoạt động tăng.
+Cụm có thể kéo dài hơn 30 km nhờ các điểm lân cận nối tiếp. Nhiều ảnh cùng vị trí
+ở các thời điểm khác nhau vẫn là nhiều lượt. Noise là điểm chưa thuộc cụm,
+không phải lỗi dữ liệu/ảnh sai; thiếu tọa độ không tự gán vào một cụm.
+Trình bày phân bố từ summary và từng cụm: tọa độ, số lượt/từng ngày, kích thước
+dài/rộng, score (min/mean/median/max, histogram); nêu số thiếu, không xem null
+là 0. unlocated_in_date_range_count là số thiếu tọa độ trong khoảng ngày
+TRƯỚC khi lọc vùng; không khẳng định chúng nằm trong vùng đang chọn.
+Sau thống kê, nếu yêu cầu kiểm tra chi tiết như câu 18, chọn cụm nhiều lượt
+nhất trước và gọi investigate_carrier_hotspot bằng report_id/cluster_id từ
+tool, GIỮ ĐÚNG khoảng ngày/vùng/use_chat_area. Không tự vẽ bounding box để
+truy vấn thành viên cụm, không dùng mã vùng/cụm cũ cho dữ liệu mới. Nếu nguồn
+hoặc vùng chat đổi, tìm cụm lại. Chọn trường hợp theo câu 17: <300 m ưu tiên 1
+không đọc ảnh; phần còn lại đọc toàn bộ mẫu, đủ rõ có bằng chứng nghi không
+phải tàu sân bay mới ưu tiên 2; mờ/unknown không flag. Nêu cụm nào, bao nhiêu
+lượt đã xử lý/đọc ảnh, flags, lỗi và phần chưa kiểm tra. Phân trang của
+find_carrier_hotspots là CỤM; của investigate_carrier_hotspot là LƯỢT trong
+một cụm. Không gọi việc đọc một cụm/một trang là đã kiểm tra tất cả các vùng.
 Khi hỏi câu 17, điều tra tổng hợp hoặc xếp ưu tiên kiểm tra thủ công các lượt
 nghi tàu sân bay theo vùng/thời gian, dùng investigate_carrier_detections.
 Dùng đúng khoảng ngày người dùng yêu cầu; '30 ngày qua' là ngày tham chiếu

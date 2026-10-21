@@ -9,7 +9,7 @@ import httpx
 from . import config
 
 
-def _request_query(query: dict, *, data_source="file_server", transport=None, analysis=False, endpoint=None):
+def _request_query(query: dict, *, data_source="file_server", transport=None, analysis=False, endpoint=None, collection=None):
     base = (os.environ.get("VESSELWATCH_DEMO_API_URL", "http://127.0.0.1:8002")
             if data_source == "demo" else config.FILE_SERVER_URL)
     with httpx.Client(base_url=base.rstrip("/") + "/", timeout=30, trust_env=False,
@@ -26,7 +26,7 @@ def _request_query(query: dict, *, data_source="file_server", transport=None, an
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
         raise ValueError("URL bản đồ vùng không hợp lệ.")
     if result["status"] == "complete":
-        collection = "pairs" if analysis and query.get("analysis") == "similar_dimensions" else "ships"
+        collection = collection or ("pairs" if analysis and query.get("analysis") == "similar_dimensions" else "ships")
         if (type(result.get("total")) is not int or result["total"] < 0
                 or not isinstance(result.get(collection), list)
                 or len(result[collection]) > min(max(0, result["total"] - query.get("offset", 0)), query.get("limit", 20))):
@@ -87,9 +87,13 @@ def request_false_carrier_candidates(query: dict, *, transport=None):
 
 
 def request_carrier_investigation_candidates(query: dict, *, transport=None):
-    from file_server.carrier_investigation import LENGTH_THRESHOLD_M, dimension_priority
     result = _request_review_candidates(query, endpoint="carrier-investigation-candidates", transport=transport,
         matches=lambda row: row["classification"] == "aircraft_carrier")
+    return _validate_investigation_groups(result)
+
+
+def _validate_investigation_groups(result):
+    from file_server.carrier_investigation import LENGTH_THRESHOLD_M, dimension_priority
     if result["status"] != "complete":
         return result
     short, visual = result.get("dimension_candidate_count"), result.get("visual_candidate_count")

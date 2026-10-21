@@ -22,6 +22,7 @@ from .missed_carriers import MissedCarrierRequest, candidate_query, missed_carri
 from .false_carriers import (FalseCarrierRequest, candidate_query as false_candidate_query,
                              false_carrier_candidates)
 from .carrier_investigation import carrier_investigation_candidates
+from .carrier_hotspots import HotspotClusterRequest, build_hotspot_report, hotspot_cluster_candidates
 
 
 class AreaConfirmation(BaseModel):
@@ -176,6 +177,40 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         rows, _, record = checked_record(request, area["area_id"])
         return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
                 **carrier_investigation_candidates(rows, body, geometry_for(record)),
+                "source_snapshot_id": record["snapshot_id"]}
+
+    @app.post("/carrier-hotspots")
+    def carrier_hotspots(body: FalseCarrierRequest, request: Request):
+        area = query_area(false_candidate_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        try:
+            report, _ = build_hotspot_report(rows, body, source_snapshot_id=record["snapshot_id"],
+                                             geometry=geometry_for(record))
+        except ImportError as exc:
+            raise HTTPException(503, "Thiếu scikit-learn; cập nhật requirements.txt trên server.") from exc
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **report}
+
+    @app.post("/carrier-hotspot-candidates")
+    def carrier_hotspot_candidates(body: HotspotClusterRequest, request: Request):
+        area = query_area(false_candidate_query(body), request)
+        if area["status"] == "needs_drawing":
+            return area
+        rows, _, record = checked_record(request, area["area_id"])
+        try:
+            report, groups = build_hotspot_report(rows, body, source_snapshot_id=record["snapshot_id"],
+                                                  geometry=geometry_for(record))
+        except ImportError as exc:
+            raise HTTPException(503, "Thiếu scikit-learn; cập nhật requirements.txt trên server.") from exc
+        if report["report_id"] != body.report_id:
+            raise HTTPException(409, "Nguồn/ngày/vùng đã đổi; tìm cụm lại trước khi kiểm tra.")
+        if body.cluster_id not in groups:
+            raise HTTPException(404, "Không tìm thấy cụm trong báo cáo này.")
+        return {**{key: area[key] for key in ("status", "area_id", "area_name", "map_url", "timezone", "is_demo")},
+                **hotspot_cluster_candidates(groups[body.cluster_id], body),
+                "report_id": body.report_id, "cluster_id": body.cluster_id,
                 "source_snapshot_id": record["snapshot_id"]}
 
     @app.post("/observation-analyses")
