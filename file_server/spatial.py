@@ -4,7 +4,7 @@ from copy import deepcopy
 from functools import lru_cache
 import gzip
 import json
-from math import isfinite
+from math import cos, degrees, isfinite, radians
 from pathlib import Path
 import unicodedata
 
@@ -13,6 +13,48 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 AREA_DATA = Path(__file__).with_name("area_data")
 AREA_NAMES = {"bien_dong": "Biển Đông", "vinh_bac_bo": "Vịnh Bắc Bộ"}
+
+# Reference points, not administrative boundaries. Sources and site distinctions
+# are documented in area_data/README.md; keep aliases explicit rather than fuzzy.
+AREA_CENTERS = {
+    "thanh_dao": {"name": "Căn cứ Thanh Đảo (Yuchi)", "latitude": 35.73525, "longitude": 119.99199},
+    "du_lam": {"name": "Căn cứ Du Lâm", "latitude": 18.221, "longitude": 109.537},
+    "long_pha": {"name": "Căn cứ Long Pha (Du Lâm Đông)", "latitude": 18.21171, "longitude": 109.685},
+}
+
+
+def named_center(value: str | None) -> str | None:
+    text = unicodedata.normalize("NFD", value or "").lower().replace("đ", "d")
+    text = " ".join("".join(c for c in text if not unicodedata.combining(c))
+                    .replace("_", " ").split())
+    for prefix in ("khu vuc can cu hai quan ", "khu vuc can cu ", "can cu hai quan ",
+                   "khu vuc ", "can cu "):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    return {"thanh dao": "thanh_dao", "qingdao": "thanh_dao", "yuchi": "thanh_dao",
+            "qingdao naval base": "thanh_dao", "du lam": "du_lam", "yulin": "du_lam",
+            "yulin naval base": "du_lam", "long pha": "long_pha", "longpo": "long_pha",
+            "du lam dong": "long_pha", "east yulin": "long_pha"}.get(text)
+
+
+def square_polygon(latitude: float, longitude: float, radius_nm: float):
+    """N/S/E/W bounds at radius_nm from center in a local spherical projection.
+
+    One nautical mile is exactly 1852 m. Distances use the center latitude, so
+    sides are approximately 2*radius_nm on Earth, with longitude correction.
+    """
+    if (not all(isfinite(v) for v in (latitude, longitude, radius_nm))
+            or not -90 < latitude < 90 or not -180 <= longitude <= 180 or radius_nm <= 0):
+        raise ValueError("Tâm và khoảng cách hải lý phải hợp lệ, khoảng cách lớn hơn 0.")
+    delta_lat = degrees(radius_nm * 1852 / 6371008.8)
+    delta_lon = delta_lat / cos(radians(latitude))
+    west, east = longitude - delta_lon, longitude + delta_lon
+    south, north = latitude - delta_lat, latitude + delta_lat
+    if south <= -90 or north >= 90 or west < -180 or east > 180 or east - west > 180:
+        raise ValueError("Ô truy vấn không được vượt qua cực hoặc kinh tuyến 180 độ; hãy giảm khoảng cách.")
+    return UserPolygon(coordinates=[[[west, south], [east, south], [east, north],
+                                     [west, north], [west, south]]]).model_dump()
 
 
 def named_area(value: str | None) -> str | None:

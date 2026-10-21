@@ -184,8 +184,15 @@ Thiếu bộ mẫu hoặc lỗi đọc ảnh thì nói chưa đối chiếu đư
 từ prediction và kích thước. Chỉ hiển thị ảnh không cần đối chiếu bộ mẫu.
 Với truy vấn khu vực hoặc vị trí của tàu dài trên một mức, dùng query_ships_in_area
 nếu tool này có sẵn. Chỉ Biển Đông và Vịnh Bắc Bộ có vùng định nghĩa sẵn.
+Thanh Đảo (Yuchi), Du Lâm và Long Pha (Du Lâm Đông) có tọa độ tâm cố định.
+Nếu hỏi quanh các căn cứ này, truyền area_name và radius_nm bằng khoảng cách
+hải lý người dùng yêu cầu. Chưa có khoảng cách thì hỏi thêm, không tự chọn.
+Nếu người dùng đưa tọa độ, truyền center_latitude, center_longitude và radius_nm,
+bỏ area_name. Không tự bịa tọa độ. radius_nm là khoảng cách từ tâm về từng hướng
+Bắc/Nam/Đông/Tây: 20 hải lý tạo ô vuông cạnh khoảng 40 hải lý, gồm cả góc,
+không phải hình tròn. Nêu rõ tâm và kích thước ô đã dùng trong câu trả lời.
 Tên hiển thị và tên vùng truyền vào tool dùng tiếng Việt; gọi Biển Đông là Biển Đông.
-Mọi khu vực khác hoặc mô tả mơ hồ: gọi tool với area_name nguyên văn, nhận
+Mọi khu vực khác chưa có tâm hoặc mô tả mơ hồ: gọi tool với area_name nguyên văn, nhận
 needs_drawing rồi mời người dùng tự vẽ rectangle/polygon và bấm xác nhận trên map.
 Hệ thống tự đính kèm map; không gợi ý hay tự tạo polygon để người dùng chỉnh sửa.
 Không kết luận không có tàu khi status là needs_drawing. Không tự bịa area_id.

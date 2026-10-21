@@ -14,8 +14,8 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict
 
-from .spatial import (AREA_NAMES, AreaGeometry, UserPolygon, named_area,
-                      predefined_geometry, query_observations)
+from .spatial import (AREA_NAMES, AREA_CENTERS, AreaGeometry, UserPolygon, named_area,
+                      named_center, square_polygon, predefined_geometry, query_observations)
 from .area_models import AreaQueryInput, AreaRequest, ObservationAnalysisRequest
 from .observation_analysis import analysis_filters, analyze_observations
 from .missed_carriers import MissedCarrierRequest, candidate_query, missed_carrier_candidates
@@ -112,13 +112,22 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         return {"status": "complete", "area_id": area_id, "area_name": record["area_name"],
                 "count_unit": "detections", "timezone": "UTC", "is_demo": source == "demo",
                 "filters": query.model_dump(), "total": len(matches),
+                "square_area": record.get("square_area"),
                 "possible_aircraft_carrier_count": sum(r["classification"] == "aircraft_carrier" for r in matches),
                 "limit": query.limit, "offset": query.offset,
                 "ships": matches[query.offset:query.offset + query.limit],
                 "map_url": public_url(request).rstrip("/") + f"/area-queries/{area_id}"}
 
     @app.get("/query-areas/{key}")
-    def area_boundary(key: str):
+    def area_boundary(key: str, radius_nm: float | None = None):
+        if key in AREA_CENTERS:
+            center = AREA_CENTERS[key]
+            try:
+                geometry = square_polygon(center["latitude"], center["longitude"], radius_nm or 0)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            return {"type": "Feature", "properties": {**center, "radius_nm": radius_nm},
+                    "geometry": geometry}
         if key not in AREA_NAMES:
             raise HTTPException(404, "Khu vực này cần người dùng tự vẽ.")
         return {"type": "Feature", "properties": {"name": AREA_NAMES[key]},
@@ -131,14 +140,24 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         key = named_area(query.area_name)
         area_name = AREA_NAMES.get(key, "Vùng tùy ý" if body.polygon else query.area_name)
         polygon = body.polygon.model_dump() if body.polygon else None
+        square_area = None
+        if query.radius_nm is not None:
+            center = AREA_CENTERS.get(named_center(query.area_name)) or {
+                "name": "Tọa độ tùy chọn", "latitude": query.center_latitude,
+                "longitude": query.center_longitude}
+            polygon = square_polygon(center["latitude"], center["longitude"], query.radius_nm)
+            square_area = {**center, "radius_nm": query.radius_nm, "side_nm": 2 * query.radius_nm}
+            area_name = f"{center['name']} ±{query.radius_nm:g} hải lý (ô vuông)"
         if query.area_id:
             _, _, previous = checked_record(request, query.area_id)
             if previous["status"] != "complete":
                 raise HTTPException(409, "Người dùng chưa vẽ và xác nhận vùng.")
             key, polygon, area_name = previous.get("named_area"), previous.get("polygon"), previous["area_name"]
+            square_area = previous.get("square_area")
         waiting = bool(query.area_name and not key and not polygon)
         record = {"status": "needs_drawing" if waiting else "complete", "query": query.model_dump(),
                   "area_name": area_name, "named_area": key, "polygon": polygon,
+                  "square_area": square_area,
                   "snapshot_id": fingerprint}
         area_id = _write(root, record)
         if waiting:
@@ -211,6 +230,7 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         controls = {"query": query.model_dump(), "selection_id": area_id,
                     "prepare_url": "/area-queries", "confirm_url": f"/area-queries/{area_id}/confirm",
                     "name": record["area_name"], "named_area": record.get("named_area"),
+                    "center_key": named_center(query.area_name),
                     "polygon": record.get("polygon")}
         return HTMLResponse(render_map({"filters": filters, "vessels": vessels,
                                         "area_query": controls}), headers={"Cache-Control": "no-store"})
@@ -219,7 +239,9 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
     def confirm_area(area_id: str, body: AreaConfirmation, request: Request):
         rows, root, record = checked_record(request, area_id)
         record.update(status="complete", area_name="Vùng tùy ý", named_area=None,
-                      polygon=body.polygon.model_dump())
+                      polygon=body.polygon.model_dump(), square_area=None)
+        record["query"].update(area_name=None, area_id=None, center_latitude=None,
+                               center_longitude=None, radius_nm=None)
         new_id = _write(root, record)
         return result_for(request, new_id, record, rows)
 
@@ -228,5 +250,6 @@ def register_area_routes(app, *, observations, public_url, storage_root, source)
         _, _, record = checked_record(request, area_id)
         if record["status"] != "complete":
             raise HTTPException(409, "Người dùng chưa xác nhận vùng.")
-        query = {**record["query"], "area_id": area_id, "area_name": None}
+        query = {**record["query"], "area_id": area_id, "area_name": None,
+                 "center_latitude": None, "center_longitude": None, "radius_nm": None}
         return {"area_id": area_id, "answer": await ask_area_agent(query, source=source)}

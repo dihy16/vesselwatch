@@ -26,7 +26,8 @@ def apply_chat_area(query, config):
         raise ValueError("Chưa liên kết map với cuộc chat này. Hãy mở map từ cùng Pipe.")
     if context.get("error"):
         raise ValueError("Chưa đọc được vùng chat. Kiểm tra server map; không dùng vùng của lượt trước.")
-    if query.get("area_name") or query.get("area_id"):
+    if (query.get("area_name") or query.get("area_id") or query.get("radius_nm") is not None
+            or query.get("center_latitude") is not None or query.get("center_longitude") is not None):
         raise ValueError("Chỉ dùng vùng đang chọn hoặc một vùng chỉ định; không truy vấn nhiều vùng.")
     area = validate_active_area(context.get("active_area"))
     if area is None:

@@ -5,13 +5,18 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .spatial import UserPolygon
+from .spatial import AREA_CENTERS, UserPolygon, named_center, square_polygon
 
 
 class AreaQueryInput(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     area_name: str | None = Field(default=None, max_length=160)
     area_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    center_latitude: float | None = Field(default=None, gt=-90, lt=90,
+        description="Vĩ độ tâm do người dùng cung cấp; dùng cùng center_longitude và radius_nm.")
+    center_longitude: float | None = Field(default=None, ge=-180, le=180)
+    radius_nm: float | None = Field(default=None, gt=0,
+        description="Khoảng cách từ tâm về mỗi hướng Bắc/Nam/Đông/Tây, đơn vị hải lý; cạnh ô vuông xấp xỉ 2 lần giá trị này. Dùng với căn cứ đã lưu hoặc tọa độ người dùng.")
     observed_from: str | None = None
     observed_to: str | None = None
     classification: Literal["aircraft_carrier", "not_aircraft_carrier", "unknown"] | None = None
@@ -30,6 +35,18 @@ class AreaQueryInput(BaseModel):
     def valid_filters(self):
         if self.area_name and self.area_id:
             raise ValueError("Chỉ dùng tên khu vực hoặc mã vùng đã xác nhận.")
+        has_center = self.center_latitude is not None or self.center_longitude is not None
+        if has_center and (self.center_latitude is None or self.center_longitude is None
+                           or self.area_name or self.area_id):
+            raise ValueError("Nhập đủ vĩ độ và kinh độ tâm; không dùng kèm tên hoặc mã vùng.")
+        key = named_center(self.area_name)
+        if (has_center or key) and self.radius_nm is None:
+            raise ValueError("Hãy nhập khoảng cách mở rộng từ tâm, đơn vị hải lý (radius_nm).")
+        if self.radius_nm is not None:
+            if not has_center and not key:
+                raise ValueError("Khoảng cách cần đi kèm tọa độ tâm hoặc tên căn cứ đã lưu: Thanh Đảo, Du Lâm, Long Pha.")
+            center = AREA_CENTERS[key] if key else {"latitude": self.center_latitude, "longitude": self.center_longitude}
+            square_polygon(center["latitude"], center["longitude"], self.radius_nm)
         for value in (self.observed_from, self.observed_to):
             if value is not None and date.fromisoformat(value).isoformat() != value:
                 raise ValueError("Ngày phải có dạng YYYY-MM-DD.")
@@ -49,7 +66,8 @@ class AreaRequest(AreaQueryInput):
 
     @model_validator(mode="after")
     def one_area(self):
-        if self.polygon and (self.area_name or self.area_id):
+        if self.polygon and (self.area_name or self.area_id or self.radius_nm is not None
+                             or self.center_latitude is not None):
             raise ValueError("Chỉ dùng một nguồn xác định khu vực.")
         return self
 

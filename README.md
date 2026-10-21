@@ -59,10 +59,16 @@ Hiển thị URL ảnh trong chat không tự động gọi đánh giá ảnh.
 
 ## Truy vấn theo khu vực
 
-Tool `query_ships_in_area` hỗ trợ dữ liệu thật và demo, với đúng hai luồng:
+Tool `query_ships_in_area` hỗ trợ dữ liệu thật và demo:
 
 - **Biển Đông / Vịnh Bắc Bộ:** dùng polygon đã lưu từ Marine Regions (IHO / SeaVoX).
-- **Mọi khu vực khác hoặc mô tả mơ hồ:** mở bản đồ cho người dùng tự vẽ rectangle/polygon
+- **Quanh một tâm:** Thanh Đảo (Yuchi), Du Lâm, Long Pha (Du Lâm Đông) có tọa độ
+  tham chiếu đã lưu. Người dùng nhập khoảng cách hải lý; `radius_nm=20` mở rộng
+  20 hải lý về Bắc/Nam/Đông/Tây, tạo ô vuông cạnh khoảng 40 hải lý, gồm cả các góc.
+  Có thể dùng tọa độ người dùng cung cấp với `center_latitude`, `center_longitude`
+  và `radius_nm`. Chưa nhập khoảng cách thì agent hỏi thêm. Map cho chọn căn cứ,
+  nhập hải lý và xem trước ô vuông trước khi xác nhận. Xem [tâm và công thức](file_server/area_data/README.md).
+- **Khu vực khác chưa có tâm hoặc mô tả mơ hồ:** mở bản đồ cho người dùng tự vẽ rectangle/polygon
   rồi bấm **Xác nhận và hỏi agent**. Không tạo polygon gợi ý.
 
 Trên map hiện có, mở mục **Vùng truy vấn** trong panel Results. Rectangle được vẽ bằng

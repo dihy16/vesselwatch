@@ -254,6 +254,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         @tool(args_schema=ChatAreaQueryInput)
         def query_ships_in_area(
             area_name: str | None = None, area_id: str | None = None,
+            center_latitude: float | None = None, center_longitude: float | None = None,
+            radius_nm: float | None = None,
             observed_from: str | None = None, observed_to: str | None = None,
             classification: Classification | None = None, ship_id: str | None = None,
             length_gt_m: float | None = None,
@@ -265,7 +267,13 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         ) -> dict:
             """Truy vấn lượt phát hiện theo vùng, ngày, kích thước và nhãn.
 
-            Chỉ Biển Đông và Vịnh Bắc Bộ có polygon lưu sẵn. Mọi tên vùng khác
+            Biển Đông và Vịnh Bắc Bộ có polygon lưu sẵn. Thanh Đảo (Yuchi),
+            Du Lâm, Long Pha (Du Lâm Đông) có tâm cố định: truyền area_name
+            và radius_nm theo người dùng. Hoặc truyền center_latitude,
+            center_longitude do người dùng cung cấp cùng radius_nm, bỏ area_name.
+            radius_nm=20 mở rộng 20 hải lý mỗi hướng, ô vuông cạnh khoảng 40 hải lý,
+            không lọc theo hình tròn. Chưa có khoảng cách thì hỏi thêm, không tự chọn.
+            Mọi tên vùng khác
             hoặc mô tả mơ hồ trả needs_drawing và map_url để người dùng tự vẽ,
             xác nhận bằng nút trên map; không tự đoán vùng. area_id là mã vùng
             người dùng đã xác nhận, không phải selection_id chưa được xác nhận.
@@ -282,6 +290,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             """
             query = AreaQueryInput(
                 area_name=area_name, area_id=area_id, observed_from=observed_from,
+                center_latitude=center_latitude, center_longitude=center_longitude, radius_nm=radius_nm,
                 observed_to=observed_to, classification=classification, ship_id=ship_id,
                 length_gt_m=length_gt_m, carrier_score_gt=carrier_score_gt,
                 min_length_m=min_length_m, max_length_m=max_length_m,
@@ -313,6 +322,8 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         def analyze_ship_observations(
             analysis: str, similarity_tolerance_pct: float = 10,
             area_name: str | None = None, area_id: str | None = None,
+            center_latitude: float | None = None, center_longitude: float | None = None,
+            radius_nm: float | None = None,
             observed_from: str | None = None, observed_to: str | None = None,
             classification: Classification | None = None, ship_id: str | None = None,
             length_gt_m: float | None = None, carrier_score_gt: float | None = None,
@@ -337,6 +348,7 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
             try:
                 query = AreaQueryInput(
                     area_name=area_name, area_id=area_id, observed_from=observed_from,
+                    center_latitude=center_latitude, center_longitude=center_longitude, radius_nm=radius_nm,
                     observed_to=observed_to, classification=classification, ship_id=ship_id,
                     length_gt_m=length_gt_m, carrier_score_gt=carrier_score_gt,
                     min_length_m=min_length_m, max_length_m=max_length_m,

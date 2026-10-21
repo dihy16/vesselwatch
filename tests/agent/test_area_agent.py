@@ -70,3 +70,15 @@ def test_area_tool_preserves_confirmed_reference_and_strict_dimensions(monkeypat
                  "length_gt_m": 250, "classification": "aircraft_carrier"})
     assert captured[0]["area_id"] == "a" * 32 and captured[0]["length_gt_m"] == 250
     assert captured[0]["classification"] == "aircraft_carrier"
+
+
+def test_area_tool_forwards_base_radius_and_user_coordinates(monkeypatch):
+    from ship_agent import tools
+
+    captured = []
+    monkeypatch.setattr(tools, "request_area_query", lambda query, **kwargs: captured.append(query) or {"total": 2})
+    query = next(t for t in create_tools(observations=[]) if t.name == "query_ships_in_area")
+    query.invoke({"area_name": "Thanh Đảo", "radius_nm": 20, "length_gt_m": 250})
+    assert captured[-1]["radius_nm"] == 20 and captured[-1]["area_name"] == "Thanh Đảo"
+    query.invoke({"center_latitude": 18, "center_longitude": 109, "radius_nm": 10})
+    assert captured[-1]["center_latitude"] == 18 and captured[-1]["center_longitude"] == 109

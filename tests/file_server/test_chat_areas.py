@@ -108,3 +108,21 @@ def test_template_injection_does_not_replace_existing_map():
     assert result.index('ChatAreaControls.attach') < result.index('const tiles =')
     with pytest.raises(ValueError):
         inject_chat_controls('<html>unsupported demo</html>')
+
+
+def test_chat_map_square_preview_and_persistence(session_server):
+    from file_server.spatial import AREA_CENTERS, square_polygon
+
+    base, _ = session_server
+    center = AREA_CENTERS["du_lam"]
+    expected = square_polygon(center["latitude"], center["longitude"], 20)
+    with httpx.Client(base_url=base, trust_env=False) as client:
+        preview = client.get("/query-areas/du_lam?radius_nm=20")
+        assert preview.status_code == 200 and preview.json()["geometry"] == expected
+        assert client.get("/query-areas/du_lam").status_code == 422
+        assert client.get("/query-areas/du_lam?radius_nm=nan").status_code == 422
+        saved = client.post("/map-sessions", json={"user_id": "u", "chat_id": "square"}).json()
+        path = f"/map-sessions/{saved['session_id']}"
+        result = client.put(path + "/area", json={"active_area": expected, "expected_revision": 0})
+        assert result.status_code == 200
+        assert client.get(path).json()["active_area"] == expected
