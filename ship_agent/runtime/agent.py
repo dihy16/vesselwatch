@@ -14,9 +14,10 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import ValidationError
 
 from ship_agent.artifacts.map_artifacts import render_map_artifact
+from ship_agent.artifacts.image_previews import has_image_results, render_chat_image_previews
 from ship_agent.artifacts.monitoring_artifacts import render_monitoring_artifact
 from ship_agent.artifacts.report_artifacts import render_carrier_artifact
-from ship_agent.runtime.attachments import _chat_visual_message, _current_reports, _current_maps
+from ship_agent.runtime.attachments import _chat_visual_message, _current_reports, _current_maps, current_image_results
 from ship_agent.runtime.chat_area import chat_area_note
 from ship_agent.runtime.dates import DataSource, resolve_reference_date
 from ship_agent.runtime.llm_context import messages_for_llm
@@ -48,6 +49,7 @@ def build_agent(
     def call_model(state: MessagesState, config: RunnableConfig):
         reports = _current_reports(state["messages"])
         maps = _current_maps(state["messages"])
+        image_results = current_image_results(state["messages"])
         demo_images_requested = False
         if data_source == "demo":
             from ship_agent.data.demo_data import wants_demo_images
@@ -67,7 +69,8 @@ def build_agent(
         try:
             response = llm_with_tools.invoke(
                 messages,
-                config={"tags": ["nostream"]} if reports or maps or demo_images_requested else None,
+                config={"tags": ["nostream"]} if reports or maps or demo_images_requested
+                    or data_source != "mock" and has_image_results(image_results) else None,
             )
         except Exception:
             if visual_message is not None and isinstance(visual_message.content, list):
@@ -100,6 +103,11 @@ def build_agent(
                 response = response.model_copy(update={
                     "id": str(uuid4()), "content": f"{response.text}\n\n{images}",
                 })
+        if not response.tool_calls and data_source != "mock" and isinstance(response.content, str):
+            displayed = render_chat_image_previews(response.content, visual_context_rows, image_results,
+                                                   data_source=data_source)
+            if displayed != response.content:
+                response = response.model_copy(update={"id": str(uuid4()), "content": displayed})
         return {"messages": [response]}
 
     graph = StateGraph(MessagesState)

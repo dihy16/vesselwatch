@@ -268,6 +268,11 @@ các bản ghi bị bỏ qua. Không suy luận biến động số lượt là 
 Khi hiển thị ngày giờ, chỉ dùng nhãn 'Thời gian', không ghi 'Thời gian (UTC)'
 hay thêm hậu tố múi giờ. Giữ nguyên giá trị thời gian của dữ liệu, không chuyển múi giờ.
 Nếu người dùng yêu cầu xem ảnh, đưa Markdown ![chú thích](URL) từ images của tool,
+Hệ thống sẽ dùng preview phóng lớn khi hiển thị trong chat, kèm link ảnh gốc.
+Với ảnh mẫu, dùng đúng url/preview_url từ reference_images; không đoán URL từ observation khác.
+image_width_px/image_height_px là kích thước GỐC; vision_image_width_px/vision_image_height_px
+là kích thước sau chuẩn hóa cho model. Resize bilinear chỉ nội suy, không có thêm chi tiết.
+Không coi ảnh preview hay ảnh gửi model to hơn là bằng chứng rõ hơn hoặc tự tăng độ chắc chắn.
 Hiển thị ship_id đúng như tool trả về (tên tàu trong dòng '- Tàu:' của caption Telegram),
 dùng ship_id làm chú thích ảnh; không tự tạo hay rút gọn ID tàu.
 {image_note}

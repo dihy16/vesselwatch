@@ -9,6 +9,21 @@ from langchain_core.tools import ToolException
 from ship_agent.runtime.visual_context import build_visual_content, latest_visual_input
 
 
+def current_image_results(messages):
+    results = []
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        if isinstance(message, ToolMessage) and message.status != "error":
+            try:
+                result = json.loads(message.content)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(result, dict):
+                results.append(result)
+    return results
+
+
 def _chat_visual_message(messages, observations, data_source):
     try:
         descriptor = latest_visual_input(messages)
@@ -16,11 +31,10 @@ def _chat_visual_message(messages, observations, data_source):
             return None
         from ship_agent.clients.carrier_reference_client import load_carrier_references
         from ship_agent.vision.image_review import _image_bytes
-        from file_server.media.image_assets import normalize_image
 
         content = build_visual_content(descriptor, observations,
             load_references=load_carrier_references,
-            load_image=lambda row: normalize_image(_image_bytes(row, data_source, None))[0])
+            load_image=lambda row: _image_bytes(row, data_source, None))
         return HumanMessage(content=content)
     except (ValueError, OSError, httpx.HTTPError, ToolException):
         # Never leak request bodies or silently show a different reference revision.

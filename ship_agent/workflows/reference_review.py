@@ -2,19 +2,22 @@
 
 import base64
 
+from file_server.media.image_assets import ImageVariant, prepare_vision_image
 from ship_agent.vision.schemas import CarrierReferenceReview
 
 
-def reference_review_content(target: bytes, library):
+def reference_review_content(target: bytes | ImageVariant, library):
     """Build target-plus-all-reference pixels; no prediction or measured sizes enter vision."""
     def pixel_block(data):
         return {"type": "image_url", "image_url": {
             "url": "data:image/png;base64," + base64.b64encode(data).decode("ascii"), "detail": "high"}}
-    content = [{"type": "text", "text": "TARGET — chỉ ảnh sau là đối tượng cần đánh giá."},
-               pixel_block(target), {"type": "text", "text": "MÔ TẢ THAM KHẢO:\n" + library.description}]
+    prepared = target if isinstance(target, ImageVariant) else prepare_vision_image(target)
+    content = [{"type": "text", "text": "TARGET — chỉ ảnh sau là đối tượng cần đánh giá. " + prepared.description()},
+               pixel_block(prepared.data), {"type": "text", "text": "MÔ TẢ THAM KHẢO:\n" + library.description}]
     for image in library.images:
-        content.extend([{"type": "text", "text": f"ẢNH MẪU reference_id={image.reference_id}; tên={image.name}"},
-                        pixel_block(image.data)])
+        prepared = prepare_vision_image(image.data)
+        content.extend([{"type": "text", "text": f"ẢNH MẪU reference_id={image.reference_id}; tên={image.name}. " + prepared.description()},
+                        pixel_block(prepared.data)])
     return content
 
 
@@ -35,8 +38,7 @@ def reference_review_result(observation, review: CarrierReferenceReview, library
             "image_url": observation["images"][0]["url"], "decision": decision,
             "flagged": decision == "flagged", "visual_review": review.model_dump(),
             "reference_revision": library.revision,
-            "reference_images": [{"reference_id": image.reference_id, "name": image.name}
-                                 for image in library.images],
+            "reference_images": library.display_images(),
             "saved_prediction": {"classification": observation["classification"],
                                  "carrier_score": observation["confidence"]},
             "is_ground_truth": False}

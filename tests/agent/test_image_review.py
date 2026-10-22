@@ -61,7 +61,7 @@ def test_registered_image_pixels_are_sent_without_saved_prediction(observation):
         assert content[1]["type"] == "image_url"
         uri = content[1]["image_url"]["url"]
         with Image.open(BytesIO(base64.b64decode(uri.split(",", 1)[1]))) as image:
-            assert image.size == (32, 24)
+            assert image.size == (224, 168)
         assert "0.97" not in json.dumps(body)
         assert "SHIP_one" not in json.dumps(body)
         assert "300" not in content[0]["text"]
@@ -80,6 +80,8 @@ def test_registered_image_pixels_are_sent_without_saved_prediction(observation):
     assert len(requests) == 1
     assert result["comparison"] == "disagrees"
     assert result["saved_prediction"]["carrier_score"] == .97
+    assert (result["image_width_px"], result["image_height_px"]) == (32, 24)
+    assert (result["vision_image_width_px"], result["vision_image_height_px"]) == (224, 168)
     assert result["is_ground_truth"] is False
     assert observation["classification"] == "aircraft_carrier"
     assert "base64" not in json.dumps(result)

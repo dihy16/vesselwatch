@@ -3,6 +3,7 @@
 import httpx
 from langchain_core.tools import ToolException, tool
 
+from ship_agent import config
 from ship_agent.clients.carrier_reference_client import load_carrier_references
 from ship_agent.runtime.visual_context import attach_visual_input
 from ship_agent.vision.observation_evidence import build_observation_evidence
@@ -83,7 +84,6 @@ def create_reference_view_tool():
             raise ToolException("Chưa mở được bộ mẫu; kiểm tra CARRIER_REFERENCE_DIR và file server.") from exc
         return attach_visual_input({"status": "ready", "reference_revision": library.revision,
             "reference_count": len(library.images), "reference_description": library.description,
-            "reference_images": [{"reference_id": image.reference_id, "name": image.name}
-                                 for image in library.images]}, library=library)
+            "reference_images": library.display_images(config.FILE_SERVER_URL)}, library=library)
 
     return view_carrier_references

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_vision_image
 from ship_agent.runtime.visual_context import attach_visual_input
 from ship_agent.runtime.visual_context import build_visual_content
 from ship_agent.runtime.visual_context import latest_visual_input
@@ -36,7 +37,8 @@ def test_chat_receives_all_pixels_for_each_supported_mode(library, mode):
     before = deepcopy(result)
     content = build_visual_content(result["visual_input"], rows,
         load_references=lambda: library, load_image=lambda row: png("green"))
-    assert pixels(content) == [png("green")] * len(rows) + ([image.data for image in library.images] if refs else [])
+    originals = [png("green")] * len(rows) + ([image.data for image in library.images] if refs else [])
+    assert pixels(content) == [prepare_vision_image(data).data for data in originals]
     assert result == before
     if refs:
         assert all(image.reference_id in json.dumps(content) for image in refs.images)

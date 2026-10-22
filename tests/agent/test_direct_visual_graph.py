@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
 from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_vision_image
 from ship_agent.runtime.agent import build_agent
 from ship_agent.runtime.attachments import _chat_visual_message
 from tests.agent.test_pair_evidence import pair_rows, reviewed
@@ -102,7 +103,8 @@ def test_real_chat_serialization_has_targets_and_all_references_and_can_reopen(t
         else:
             actual = [base64.b64decode(part["image_url"]["url"].split(",", 1)[1]) for part in image_blocks]
             expected = [png("green" if row is rows[0] else "blue") for row in targets]
-            assert actual == expected + ([] if mode == "generic" else [image.data for image in library.images])
+            expected += [] if mode == "generic" else [image.data for image in library.images]
+            assert actual == [prepare_vision_image(data).data for data in expected]
             tool_result = next(m for m in reversed(body["messages"]) if m["role"] == "tool")
             assert "base64" not in tool_result["content"]
             if mode == "false-investigation":

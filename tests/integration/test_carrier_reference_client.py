@@ -24,6 +24,9 @@ def test_downloads_every_reference_without_following_public_urls(tmp_path):
         return httpx.Response(200, content=image.data)
     fetched = load_carrier_references(transport=httpx.MockTransport(respond))
     assert len(requests) == 3 and fetched == library
+    records = fetched.display_images()
+    assert all(record["url"].startswith("http://arbitrary-public.example/") for record in records)
+    assert all("preview=1" in record["preview_url"] and library.revision in record["preview_url"] for record in records)
 
 
 @pytest.mark.parametrize("failure", ["http", "corrupt-bytes", "missing-description", "duplicates", "wrong-revision"])

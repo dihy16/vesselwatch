@@ -96,6 +96,13 @@ không lọc khu vực”**. Không lấy ID giả như `SHIP_001` để test d�
 
 ### T13 — Bằng chứng của một observation
 
+Ảnh trong chat dùng preview cạnh dài 384 px; bấm ảnh để mở bản gốc. Ảnh nhỏ gửi
+model được phóng đến cạnh dài 224 px, giữ tỷ lệ. Ví dụ crop 48×26 px thành
+224×121 px cho model, 384×208 px trong chat. Đối chiếu `image_width_px` /
+`image_height_px` (gốc) với `vision_image_width_px` / `vision_image_height_px`
+(gửi model) trong kết quả review. Phóng ảnh không bổ sung chi tiết, ảnh mờ vẫn
+phải được đánh giá chưa đủ rõ. Xem [chi tiết](image_resizing.md).
+
 **Thao tác:** thay `[OBS_ID]` bằng ID lấy ở bước chuẩn bị; đây là chỗ điền,
 không gửi nguyên placeholder.
 

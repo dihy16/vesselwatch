@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from file_server import config
 from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_preview_image
 
 
 def register_references_routes(app):
@@ -31,13 +32,18 @@ def register_references_routes(app):
 
     @router.get("/carrier-references/images/{reference_id}")
     def carrier_reference_image(reference_id: str, request: Request,
-                                revision: str = Query(pattern=r"^[a-f0-9]{64}$")):
+                                revision: str = Query(pattern=r"^[a-f0-9]{64}$"), preview: bool = False):
         library = reference_library(request)
         if revision != library.revision:
             raise HTTPException(409, "Bộ mẫu đã thay đổi; tải lại danh sách ảnh mẫu.")
         image = next((image for image in library.images if image.reference_id == reference_id), None)
         if image is None:
             raise HTTPException(404, "Không tìm thấy ảnh mẫu.")
+        if preview:
+            variant = prepare_preview_image(image.data)
+            return Response(variant.data, media_type="image/png", headers={
+                "Cache-Control": "no-store", "X-Original-Width": str(image.width),
+                "X-Original-Height": str(image.height)})
         return Response(image.data, media_type="image/png", headers={"Cache-Control": "no-store"})
 
     app.include_router(router)

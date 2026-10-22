@@ -53,7 +53,9 @@ Với dữ liệu thật, chạy file server trước và dùng `--data-source f
 Tool tải ảnh qua `FILE_SERVER_URL` nội bộ rồi gửi nội dung ảnh dạng base64 đến
 vision endpoint; không yêu cầu endpoint truy cập URL localhost của file server.
 Demo đọc ảnh local đã kiểm tra hash. Giới hạn ảnh 10 MB và 16 triệu pixel;
-ảnh được chuẩn hóa PNG, không phóng to hoặc suy diễn thêm chi tiết.
+ảnh được chuẩn hóa PNG. Ảnh nhỏ được phóng giữ tỷ lệ đến cạnh dài 224 px khi gửi
+model; ảnh lớn hơn giữ nguyên kích thước. Chat dùng preview cạnh dài 384 px, bấm
+vào để mở ảnh gốc. Nội suy không bổ sung chi tiết. Xem [quy tắc resize ảnh](docs/image_resizing.md).
 
 Lời gọi thị giác chỉ nhận ảnh, không nhận kích thước, nhãn hay score cũ. Kết quả
 `visual_review` được đối chiếu sau với `saved_prediction`; `comparison` là `agrees`,

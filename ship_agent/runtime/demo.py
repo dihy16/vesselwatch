@@ -57,13 +57,19 @@ def create_app() -> FastAPI:
         return HTMLResponse(render_map(payload), headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/images/{image_id}")
-    def image(image_id: str, original: bool = False):
+    def image(image_id: str, original: bool = False, preview: bool = False):
         row = records.get(image_id)
         if row is None:
             raise HTTPException(404, "Demo image not found.")
         path = image_path(row)
-        if original:
+        if original and not preview:
             return FileResponse(path)
+        if preview:
+            from file_server.media.image_assets import prepare_preview_image
+            variant = prepare_preview_image(path.read_bytes())
+            return Response(variant.data, media_type="image/png", headers={
+                "Cache-Control": "no-store", "X-Original-Width": str(variant.original_width),
+                "X-Original-Height": str(variant.original_height)})
         # Preserve the original crop on disk; enlarge only its chat preview.
         from io import BytesIO
         from PIL import Image

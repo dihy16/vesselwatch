@@ -1,7 +1,7 @@
 """Fetch every reference image from the configured backend into one immutable set."""
 
 import re
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, parse_qs
 
 import httpx
 
@@ -54,7 +54,16 @@ def load_carrier_references(*, transport=None) -> ReferenceLibrary:
             normalized, width, height = normalize_image(data)
             if width != record.get("width") or height != record.get("height"):
                 raise ValueError("Reference dimensions do not match the manifest.")
-            images.append(ReferenceImage(identity, name, normalized, width, height))
+            public_url = record.get("url", str(client.base_url) + path)
+            if not isinstance(public_url, str):
+                raise ValueError("Invalid reference viewer URL.")
+            parts = urlsplit(public_url)
+            if (parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password
+                    or not parts.path.endswith(f"/carrier-references/images/{identity}")
+                    or parse_qs(parts.query).get("revision") != [revision]
+                    or any(char.isspace() for char in public_url)):
+                raise ValueError("Invalid reference viewer URL.")
+            images.append(ReferenceImage(identity, name, normalized, width, height, url=public_url))
     # No reference is silently dropped, even if any individual download fails.
     if library_revision(description, images) != revision:
         raise ValueError("Reference set changed during download.")

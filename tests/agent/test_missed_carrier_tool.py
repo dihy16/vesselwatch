@@ -14,6 +14,7 @@ from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
 
 from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_vision_image
 from ship_agent.vision.image_review import review_image_against_references
 from ship_agent.workflows.reference_review import reference_review_result
 from ship_agent.tools.missed_carrier_tool import create_missed_carrier_tool
@@ -36,7 +37,7 @@ def test_actual_provider_receives_target_plus_every_reference_without_saved_scor
         content = body["messages"][1]["content"]
         pixels = [base64.b64decode(item["image_url"]["url"].split(",", 1)[1])
                   for item in content if item["type"] == "image_url"]
-        assert pixels == [target] + [image.data for image in library.images]
+        assert pixels == [prepare_vision_image(data).data for data in [target, *[image.data for image in library.images]]]
         assert row["ship_id"] not in json.dumps(body)
         assert "0.01" not in json.dumps(body)
         return httpx.Response(200, json={"id": "review", "object": "chat.completion", "created": 0,

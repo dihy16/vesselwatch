@@ -1,11 +1,11 @@
 """Immutable reference-library snapshots loaded from the configured local folder."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 import json
 from pathlib import Path
 
-from file_server.media.image_assets import MAX_IMAGE_BYTES, normalize_image
+from file_server.media.image_assets import MAX_IMAGE_BYTES, normalize_image, image_preview_url
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
@@ -19,6 +19,7 @@ class ReferenceImage:
     data: bytes
     width: int
     height: int
+    url: str | None = field(default=None, compare=False, repr=False)
 
 
 def reference_id(name: str, data: bytes) -> str:
@@ -37,12 +38,21 @@ class ReferenceLibrary:
     images: tuple[ReferenceImage, ...]
     revision: str
 
+    def display_images(self, base_url: str | None = None):
+        records = []
+        for image in self.images:
+            record = {"reference_id": image.reference_id, "name": image.name,
+                      "width": image.width, "height": image.height}
+            url = image.url or (base_url.rstrip("/") +
+                f"/carrier-references/images/{image.reference_id}?revision={self.revision}" if base_url else None)
+            if url:
+                record.update(url=url, preview_url=image_preview_url(url))
+            records.append(record)
+        return records
+
     def manifest(self, base_url: str):
         return {"description": self.description, "revision": self.revision,
-                "images": [{"reference_id": image.reference_id, "name": image.name,
-                            "width": image.width, "height": image.height, "mime_type": "image/png",
-                            "url": base_url.rstrip("/") + f"/carrier-references/images/{image.reference_id}?revision={self.revision}"}
-                           for image in self.images]}
+                "images": [{**record, "mime_type": "image/png"} for record in self.display_images(base_url)]}
 
 
 def _read_bounded(path: Path, limit: int):
