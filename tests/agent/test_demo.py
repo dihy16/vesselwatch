@@ -16,11 +16,13 @@ from langchain_openai import ChatOpenAI
 from PIL import Image
 import pytest
 
-from ship_agent.agent import build_agent
-from ship_agent.demo import create_app
-from ship_agent.demo_data import demo_image_markdown, image_path, read_snapshot
-from ship_agent.report_artifacts import render_carrier_artifact
-from ship_agent.tools import create_tools
+from ship_agent.runtime.agent import build_agent
+from ship_agent.runtime.demo import create_app
+from ship_agent.data.demo_data import demo_image_markdown
+from ship_agent.data.demo_data import image_path
+from ship_agent.data.demo_data import read_snapshot
+from ship_agent.artifacts.report_artifacts import render_carrier_artifact
+from ship_agent.tools.registry import create_tools
 
 
 @pytest.mark.parametrize("invalid_id", [None, "missing", "duplicate", "same_capture"])
@@ -129,7 +131,8 @@ def test_demo_entry_point_loads_as_a_file_without_package_context():
 
 
 def test_packaged_demo_matches_recording_plan_without_duplicate_carrier_crops(monkeypatch):
-    from ship_agent.map_snapshots import MapFilters, select_records
+    from ship_agent.artifacts.map_snapshots import MapFilters
+    from ship_agent.artifacts.map_snapshots import select_records
 
     root = Path(__file__).resolve().parents[2] / "data/demo"
     monkeypatch.setenv("VESSELWATCH_DEMO_DIR", str(root))
@@ -157,7 +160,7 @@ def test_packaged_demo_matches_recording_plan_without_duplicate_carrier_crops(mo
 
 
 def test_demo_search_counts_and_report_share_the_same_source(demo_snapshot, monkeypatch):
-    from ship_agent import tools as tools_module
+    import ship_agent.tools.registry as tools_module
     monkeypatch.setattr(tools_module, "load_observations", lambda: pytest.fail("No production API in demo"))
     monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *a: pytest.fail("No report HTTP in demo"))
     count, search, report, *_ = create_tools(data_source="demo")
@@ -210,7 +213,7 @@ def test_demo_image_api_enlarges_preview_but_preserves_original(demo_snapshot):
 
 @pytest.mark.parametrize("last,expected_total", [("2025-12-30", 1), ("2025-12-29", 0)])
 def test_demo_chart_png_matches_tool_and_rejects_stale_urls(demo_snapshot, monkeypatch, last, expected_total):
-    import ship_agent.demo as demo_module
+    import ship_agent.runtime.demo as demo_module
 
     captured = []
     render = demo_module.render_carrier_chart

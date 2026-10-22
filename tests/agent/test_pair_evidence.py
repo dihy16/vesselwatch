@@ -5,9 +5,10 @@ import json
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.pair_evidence import build_pair_evidence, validate_observation_pair
-from ship_agent.reference_review import reference_review_result
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.vision.pair_evidence import build_pair_evidence
+from ship_agent.vision.pair_evidence import validate_observation_pair
+from ship_agent.workflows.reference_review import reference_review_result
 from tests.agent.test_reference_review import review
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_missed_carrier_client import response_payload

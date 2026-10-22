@@ -3,7 +3,8 @@
 import httpx
 import pytest
 
-from ship_agent.area_client import request_area_query, request_observation_analysis
+from ship_agent.clients.area_client import request_area_query
+from ship_agent.clients.area_client import request_observation_analysis
 
 import json
 

@@ -17,12 +17,16 @@ from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
 import pytest
 
-from ship_agent.agent import build_agent
-from ship_agent.demo import create_app
-from ship_agent.map_artifacts import render_map_artifact
-from ship_agent.map_snapshots import MapFilters, map_root, request_map
-from ship_agent.tools import create_tools
+from ship_agent.runtime.agent import build_agent
+from ship_agent.runtime.demo import create_app
+from ship_agent.artifacts.map_artifacts import render_map_artifact
+from ship_agent.artifacts.map_snapshots import MapFilters
+from ship_agent.artifacts.map_snapshots import map_root
+from ship_agent.artifacts.map_snapshots import request_map
+from ship_agent.tools.registry import create_tools
 from tests.agent.test_demo import demo_snapshot
+
+import ship_agent.tools.maps as maps_tools
 
 
 QUERY = {"observed_from": "2025-12-24", "observed_to": "2025-12-30",
@@ -126,19 +130,17 @@ def test_map_client_separates_internal_and_public_urls(demo_snapshot, monkeypatc
 
 
 def test_map_tool_failure_does_not_return_an_old_map(demo_snapshot, monkeypatch):
-    from ship_agent import tools as tools_module
 
     def fail(*args):
         raise httpx.ConnectError("Demo server offline")
 
-    monkeypatch.setattr(tools_module, "request_map", fail)
+    monkeypatch.setattr(maps_tools, "request_map", fail)
     with pytest.raises(ToolException, match="8002"):
         create_tools(data_source="demo")[3].invoke(QUERY)
 
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_graph_attaches_small_iframe_and_keeps_leaflet_out_of_llm_context(demo_snapshot, monkeypatch, stream):
-    from ship_agent import tools as tools_module
 
     snapshot, _, _ = demo_snapshot
     with TestClient(create_app()) as backend:
@@ -146,7 +148,7 @@ def test_graph_attaches_small_iframe_and_keeps_leaflet_out_of_llm_context(demo_s
             assert snapshot_id == snapshot["snapshot_id"]
             return create_map(backend, snapshot, filters.model_dump())
 
-        monkeypatch.setattr(tools_module, "request_map", call_backend)
+        monkeypatch.setattr(maps_tools, "request_map", call_backend)
         requests = []
 
         def respond(request):

@@ -5,7 +5,8 @@ import json
 import pytest
 
 from file_server.config import DataSettings
-from file_server.loader import load_predictions, load_store
+from file_server.data.predictions import load_predictions
+from file_server.data.loader import load_store
 
 
 def write_report(tmp_path, rows, **metadata):

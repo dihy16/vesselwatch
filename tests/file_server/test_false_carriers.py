@@ -3,8 +3,9 @@
 import pytest
 from pydantic import ValidationError
 
-from file_server.false_carriers import FalseCarrierRequest, false_carrier_candidates
-from file_server.spatial import AreaGeometry
+from file_server.schemas.reviews import FalseCarrierRequest
+from file_server.services.false_carriers import false_carrier_candidates
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 

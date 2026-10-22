@@ -2,9 +2,10 @@
 
 from copy import deepcopy
 
-from file_server.carrier_investigation import carrier_investigation_candidates, dimension_priority
-from file_server.false_carriers import FalseCarrierRequest
-from file_server.spatial import AreaGeometry
+from file_server.services.carrier_investigation import carrier_investigation_candidates
+from file_server.services.carrier_investigation import dimension_priority
+from file_server.schemas.reviews import FalseCarrierRequest
+from file_server.services.spatial import AreaGeometry
 from tests.file_server.test_observation_analysis import row
 from tests.file_server.test_spatial import SQUARE
 

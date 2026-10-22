@@ -10,11 +10,14 @@ from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
 import pytest
 
-from file_server.carrier_reports import daily_carrier_report
-from ship_agent.agent import build_agent
-from ship_agent.file_server_client import FileServerError, load_daily_carrier_report
-from ship_agent.report_artifacts import render_carrier_artifact
-from ship_agent import tools as tools_module
+from file_server.services.carrier_reports import daily_carrier_report
+from ship_agent.runtime.agent import build_agent
+from ship_agent.clients.file_server_client import FileServerError
+from ship_agent.clients.file_server_client import load_daily_carrier_report
+from ship_agent.artifacts.report_artifacts import render_carrier_artifact
+import ship_agent.tools.registry as tools_module
+
+import ship_agent.tools.reports as reports_tools
 
 
 FIRST, LAST = date(2026, 10, 12), date(2026, 10, 14)
@@ -73,7 +76,7 @@ def test_tool_returns_server_authoritative_report_and_handles_failures(monkeypat
         assert first == FIRST and last == LAST
         return report_data()
 
-    monkeypatch.setattr(tools_module, "load_daily_carrier_report", fetch)
+    monkeypatch.setattr(reports_tools, "load_daily_carrier_report", fetch)
     tool = tools_module.create_tools(date(2026, 10, 14), observations=[])[2]
     arguments = {"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat(),
                  "output_format": output_format}
@@ -87,13 +90,13 @@ def test_tool_returns_server_authoritative_report_and_handles_failures(monkeypat
     def fail(*args):
         raise FileServerError("Không kết nối được file server.")
 
-    monkeypatch.setattr(tools_module, "load_daily_carrier_report", fail)
+    monkeypatch.setattr(reports_tools, "load_daily_carrier_report", fail)
     with pytest.raises(ToolException, match="file server"):
         tool.invoke(arguments)
 
 
 def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
-    monkeypatch.setattr(tools_module, "load_daily_carrier_report",
+    monkeypatch.setattr(reports_tools, "load_daily_carrier_report",
                         lambda *args: pytest.fail("Mock must not call real file server"))
     tool = tools_module.create_tools(date(2026, 10, 14), data_source="mock")[2]
     report = tool.invoke({"observed_from": FIRST.isoformat(), "observed_to": LAST.isoformat()})
@@ -108,7 +111,7 @@ def test_mock_report_makes_no_http_and_does_not_invent_chart_url(monkeypatch):
 
 @pytest.mark.parametrize("stream", [False, True])
 def test_graph_report_round_trip_returns_html_artifact(monkeypatch, stream):
-    monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *args: report_data())
+    monkeypatch.setattr(reports_tools, "load_daily_carrier_report", lambda *args: report_data())
     requests = []
 
     def respond(request):

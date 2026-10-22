@@ -5,8 +5,8 @@ from html.parser import HTMLParser
 
 import pytest
 
-from file_server.carrier_reports import daily_carrier_report
-from ship_agent.report_artifacts import render_carrier_artifact
+from file_server.services.carrier_reports import daily_carrier_report
+from ship_agent.artifacts.report_artifacts import render_carrier_artifact
 
 
 class DailyRows(HTMLParser):
@@ -61,7 +61,7 @@ def test_artifact_contains_every_day_and_exact_counts_without_external_assets(da
 
 
 def test_artifact_marks_mock_data_and_escapes_text():
-    from ship_agent.tools import create_tools
+    from ship_agent.tools.registry import create_tools
 
     tool = create_tools(date(2026, 10, 14), data_source="mock")[2]
     report = tool.invoke({"observed_from": "2026-10-12", "observed_to": "2026-10-14"})

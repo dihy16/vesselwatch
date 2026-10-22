@@ -4,9 +4,9 @@ from copy import deepcopy
 
 import pytest
 
-from file_server.carrier_references import load_reference_library
-from file_server.carrier_investigation import dimension_priority
-from ship_agent.carrier_investigation import run_carrier_investigation
+from file_server.media.carrier_references import load_reference_library
+from file_server.services.carrier_investigation import dimension_priority
+from ship_agent.workflows.carrier_investigation import run_carrier_investigation
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder
 from tests.integration.test_carrier_investigation_client import investigation_payload

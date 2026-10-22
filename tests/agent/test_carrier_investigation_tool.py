@@ -10,8 +10,8 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.carrier_investigation_tool import create_carrier_investigation_tool
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.carrier_investigation_tool import create_carrier_investigation_tool
 from tests.agent.test_carrier_investigation_workflow import candidates
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder, png
@@ -19,7 +19,8 @@ from tests.file_server.test_spatial import SQUARE
 
 
 def setup_review(tmp_path, monkeypatch):
-    from ship_agent import carrier_investigation_tool as module, image_review
+    import ship_agent.tools.carrier_investigation_tool as module
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -28,7 +29,8 @@ def setup_review(tmp_path, monkeypatch):
 
 
 def test_short_only_never_initializes_vision_or_reference_library(monkeypatch):
-    from ship_agent import carrier_investigation_tool as module, image_review
+    import ship_agent.tools.carrier_investigation_tool as module
+    import ship_agent.vision.image_review as image_review
     monkeypatch.setattr(module, "request_carrier_investigation_candidates", lambda _: candidates([100]))
     monkeypatch.setattr(module, "load_carrier_references", lambda: pytest.fail("Must not load library"))
     monkeypatch.setattr(image_review, "_vision_model", lambda: pytest.fail("Must not load vision"))
@@ -55,7 +57,7 @@ def test_hidden_chat_polygon_and_only_reviewed_targets_in_direct_pixels(tmp_path
 
 
 def test_needs_drawing_on_persistent_map_returns_no_second_map(monkeypatch):
-    from ship_agent import carrier_investigation_tool as module
+    import ship_agent.tools.carrier_investigation_tool as module
     monkeypatch.setattr(module, "request_carrier_investigation_candidates", lambda _: {
         "status": "needs_drawing", "selection_id": "a" * 32, "map_url": "http://public/map"})
     config = {"configurable": {"chat_area_context": {"user_id": "u", "chat_id": "c", "active_area": None}}}
@@ -65,8 +67,9 @@ def test_needs_drawing_on_persistent_map_returns_no_second_map(monkeypatch):
 
 
 def test_graph_receives_reviewed_pixels_only_and_priority_prompt(tmp_path, monkeypatch):
-    from ship_agent.agent import build_agent
-    from ship_agent import carrier_reference_client, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     module, library = setup_review(tmp_path, monkeypatch)
     page = candidates([100, 300])
     monkeypatch.setattr(module, "request_carrier_investigation_candidates", lambda _: page)

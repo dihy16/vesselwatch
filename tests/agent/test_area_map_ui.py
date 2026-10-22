@@ -9,7 +9,9 @@ import subprocess
 
 import pytest
 
-from ship_agent.map_artifacts import ASSETS, render_map, render_map_artifact
+from ship_agent.artifacts.map_artifacts import ASSETS
+from ship_agent.artifacts.map_artifacts import render_map
+from ship_agent.artifacts.map_artifacts import render_map_artifact
 
 
 def test_rectangle_polygon_and_backend_agent_handoff():

@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from ship_agent import dates
+import ship_agent.runtime.dates as dates
 
 
 def test_default_reference_day_is_utc(monkeypatch):

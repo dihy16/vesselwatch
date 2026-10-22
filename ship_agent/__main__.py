@@ -1,16 +1,16 @@
 """Run `python -m ship_agent --help`."""
 
 import argparse
-import json
 from datetime import date, timedelta
+import json
 from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 
-from .agent import build_agent
-from .dates import resolve_reference_date
-from .tools import create_tools
+from ship_agent.runtime.agent import build_agent
+from ship_agent.runtime.dates import resolve_reference_date
+from ship_agent.tools.registry import create_tools
 
 
 def main():

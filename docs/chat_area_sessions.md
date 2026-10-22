@@ -60,7 +60,9 @@ thể dùng port 8000 trực tiếp.
 1. Chọn **model/Pipe LangGraph hiện tại**, trong cùng chat gửi `map` hoặc `mở bản đồ`.
    Pipe tạo/lấy phiên theo user/chat rồi trả Artifact có URL chứa `map_session`.
    Lệnh mở map không gọi thêm agent.
-2. Trên map chọn Biển Đông/Vịnh Bắc Bộ hoặc tự vẽ rectangle/polygon.
+2. Trên map chọn Biển Đông/Vịnh Bắc Bộ, chọn căn cứ kèm khoảng cách hải lý,
+   hoặc tự vẽ rectangle/polygon. Với căn cứ, khoảng cách là mức mở rộng về mỗi
+   hướng Bắc/Nam/Đông/Tây: 20 hải lý tạo ô vuông cạnh khoảng 40 hải lý.
 3. Bấm **Xác nhận vùng** và đợi thông báo đã lưu. Vẽ dở/lưu thất bại không thay vùng
    cũ. Nút xác nhận chỉ lưu vùng, không gọi một agent run riêng.
 4. Quay lại chat, hỏi ví dụ **“Có bao nhiêu lượt tàu nghi là tàu sân bay trong vùng
@@ -71,8 +73,13 @@ thể dùng port 8000 trực tiếp.
    vùng hoặc server map lỗi, truy vấn vùng yêu cầu xác nhận/báo lỗi, không tự chuyển
    thành đếm toàn bộ dữ liệu hay dùng vùng của lượt trước.
 
-Chỉ một vùng cho mỗi truy vấn. Biển Đông/Vịnh Bắc Bộ lưu bằng khóa ranh giới có sẵn;
-mọi tên khác vẫn yêu cầu người dùng tự vẽ.
+Chỉ một vùng cho mỗi truy vấn. Biển Đông/Vịnh Bắc Bộ lưu bằng khóa ranh giới có sẵn.
+Thanh Đảo (Yuchi), Du Lâm và Long Pha (Du Lâm Đông) có tâm tham chiếu đã lưu;
+người dùng nhập khoảng cách và xác nhận ô vuông được tạo. Ô vuông được lưu dưới
+dạng polygon như vùng tự vẽ. Những tên chưa có tâm vẫn yêu cầu tự vẽ.
+Agent cũng nhận tên căn cứ kèm khoảng cách hoặc tọa độ tâm kèm khoảng cách ngay
+trong câu hỏi; khi đó truy vấn dùng vùng được chỉ định, không thay vùng đã lưu của
+chat. Tâm, nguồn và công thức xem [tài liệu vùng](../file_server/area_data/README.md).
 
 ## Lưu trữ và API
 

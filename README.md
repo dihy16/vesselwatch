@@ -1,8 +1,14 @@
 # Agent truy vấn tàu
 
+Cấu trúc package và các entry point: [hướng dẫn codebase](docs/code_structure.md).
+Test các tính năng phân tích: [hướng dẫn test Level 4–5 trên MID/Open WebUI](docs/testing_level_4_5.md).
+
 Bước kiểm tra ảnh có thể bị bỏ sót tàu sân bay (nhãn âm, score ≤0,01, dài ≥250 m):
 xem [chuẩn bị mô tả và ảnh mẫu trên MID](docs/missed_carrier_review.md).
 Luồng câu 17: [điều tra và xếp ưu tiên kiểm tra thủ công](docs/carrier_investigation.md).
+Luồng câu 18: [tìm cụm DBSCAN và kiểm tra chi tiết](docs/carrier_hotspots.md).
+Luồng câu 19: [kiểm tra nhãn, chia nhóm và đề xuất xác minh thủ công](docs/label_review.md).
+Luồng câu 20: [báo cáo giám sát và so sánh theo tháng](docs/monitoring_reports.md).
 Câu 13 dùng lại `review_ship_images(use_carrier_references=true)` cho một
 observation bất kỳ để tổng hợp bằng chứng ảnh, số đo và prediction.
 
@@ -39,7 +45,7 @@ Chạy trực tiếp, không cần LLM điều phối hoặc server demo:
 
 ```powershell
 # Xem các observation_id có sẵn trong bộ ảnh demo.
-python -c "from ship_agent.demo_data import load_demo_observations; print('\n'.join(o['observation_id'] for o in load_demo_observations()))"
+python -c "from ship_agent.data.demo_data import load_demo_observations; print('\n'.join(o['observation_id'] for o in load_demo_observations()))"
 python -m ship_agent.image_review --data-source demo --observation-id <observation_id>
 ```
 
@@ -47,7 +53,9 @@ Với dữ liệu thật, chạy file server trước và dùng `--data-source f
 Tool tải ảnh qua `FILE_SERVER_URL` nội bộ rồi gửi nội dung ảnh dạng base64 đến
 vision endpoint; không yêu cầu endpoint truy cập URL localhost của file server.
 Demo đọc ảnh local đã kiểm tra hash. Giới hạn ảnh 10 MB và 16 triệu pixel;
-ảnh được chuẩn hóa PNG, không phóng to hoặc suy diễn thêm chi tiết.
+ảnh được chuẩn hóa PNG. Ảnh nhỏ được phóng giữ tỷ lệ đến cạnh dài 224 px khi gửi
+model; ảnh lớn hơn giữ nguyên kích thước. Chat dùng preview cạnh dài 384 px, bấm
+vào để mở ảnh gốc. Nội suy không bổ sung chi tiết. Xem [quy tắc resize ảnh](docs/image_resizing.md).
 
 Lời gọi thị giác chỉ nhận ảnh, không nhận kích thước, nhãn hay score cũ. Kết quả
 `visual_review` được đối chiếu sau với `saved_prediction`; `comparison` là `agrees`,

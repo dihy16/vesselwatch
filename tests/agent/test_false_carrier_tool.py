@@ -10,8 +10,8 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.false_carrier_tool import create_false_carrier_tool
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.false_carrier_tool import create_false_carrier_tool
 from tests.agent.test_false_carrier_evidence import visual
 from tests.file_server.test_carrier_references import reference_folder, png
 from tests.file_server.test_spatial import SQUARE
@@ -19,7 +19,8 @@ from tests.integration.test_false_carrier_client import positive_payload
 
 
 def setup_review(tmp_path, monkeypatch):
-    from ship_agent import false_carrier_tool as module, image_review
+    import ship_agent.tools.false_carrier_tool as module
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(module, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "_vision_model", lambda: object())
@@ -47,7 +48,7 @@ def test_hidden_chat_scope_and_full_pixel_descriptor_without_overwriting_predict
 
 @pytest.mark.parametrize("total,offset,status", [(0, 0, "no_candidates"), (1, 2, "empty_page")])
 def test_empty_results_do_not_call_library_or_vision(monkeypatch, total, offset, status):
-    from ship_agent import false_carrier_tool as module
+    import ship_agent.tools.false_carrier_tool as module
     candidates = positive_payload()
     candidates.update(ships=[], total=total, offset=offset)
     monkeypatch.setattr(module, "request_false_carrier_candidates", lambda _: candidates)
@@ -58,7 +59,8 @@ def test_empty_results_do_not_call_library_or_vision(monkeypatch, total, offset,
 
 
 def test_missing_library_and_all_failed_images_are_not_clean_negatives(tmp_path, monkeypatch):
-    from ship_agent import false_carrier_tool as module, image_review
+    import ship_agent.tools.false_carrier_tool as module
+    import ship_agent.vision.image_review as image_review
     monkeypatch.setattr(module, "request_false_carrier_candidates", lambda _: positive_payload())
     def missing():
         raise ValueError("No bank")
@@ -75,8 +77,9 @@ def test_missing_library_and_all_failed_images_are_not_clean_negatives(tmp_path,
 
 
 def test_graph_receives_all_pixels_and_does_not_attach_another_map(tmp_path, monkeypatch):
-    from ship_agent.agent import build_agent
-    from ship_agent import carrier_reference_client, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.clients.carrier_reference_client as carrier_reference_client
+    import ship_agent.vision.image_review as image_review
     module, library = setup_review(tmp_path, monkeypatch)
     monkeypatch.setattr(module, "request_false_carrier_candidates", lambda _: positive_payload())
     monkeypatch.setattr(carrier_reference_client, "load_carrier_references", lambda: library)

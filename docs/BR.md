@@ -33,9 +33,9 @@
 ## Level 5 — Điều tra đa bước và tổng hợp
 
 - [x] 17. Hãy điều tra các lượt được phân loại là tàu sân bay trong khu vực X trong 30 ngày qua (hoặc khoảng ngày được chỉ định): ưu tiên 1 là chiều dài <300 m, đưa vào danh sách ngay không đọc ảnh; phần còn lại đối chiếu toàn bộ bộ mẫu, ưu tiên 2 là ảnh đủ rõ có bằng chứng nghi không phải tàu sân bay. Ảnh mờ/unknown không flag; báo rõ phạm vi, phân trang và lỗi.
-- [ ] 18. Hãy xác định những khu vực có nhiều lượt phát hiện tàu nghi là tàu sân bay trong 30 ngày qua. Phân tích phân bố theo vị trí, thời gian, kích thước và độ tin cậy, sau đó chọn các trường hợp đáng chú ý để kiểm tra chi tiết.
-- [ ] 19. Hãy điều tra các trường hợp mô hình nhận dạng chưa chắc chắn trong khu vực X: tìm các trường hợp tiêu biểu, phân tích nguyên nhân có thể xảy ra, thống kê theo nhóm và đề xuất những trường hợp cần bổ sung nhãn.
-- [ ] 20. Hãy lập báo cáo giám sát tàu khả nghi tại khu vực X trong 30 ngày qua: thống kê lượt phát hiện theo thời gian, kích thước và kết quả phân loại; xác định các xu hướng hoặc bất thường đáng chú ý; kiểm tra những trường hợp liên quan và tổng hợp nhận định kèm bằng chứng.
+- [x] 18. Hãy xác định những khu vực có nhiều lượt phát hiện tàu nghi là tàu sân bay trong 30 ngày qua (hoặc khoảng ngày được chỉ định), dùng DBSCAN với eps=30 km và min_samples=2. Phân tích phân bố theo vị trí, thời gian, kích thước và score; xếp cụm theo số lượt giảm dần, chọn thành viên cụm để kiểm tra chi tiết theo quy tắc câu 17. Báo riêng điểm lẻ, thiếu tọa độ, phạm vi và phân trang.
+- [x] 19. Trong khoảng ngày bắt buộc và khu vực tùy chọn, kiểm tra các lượt được gán nhãn tàu sân bay, ưu tiên score thấp trước nhưng không loại score cao hoặc thiếu score. Đọc từng ảnh đối chiếu toàn bộ bộ mẫu, chia nhóm nghi false positive/phù hợp mẫu/chưa đủ bằng chứng/ảnh chưa đủ rõ/lỗi review, nêu ví dụ và bằng chứng hoặc hạn chế ảnh. Chỉ đề xuất xác minh-bổ sung nhãn thủ công khi ảnh đủ rõ có bằng chứng mâu thuẫn; mờ/unknown không flag, không tự sửa nhãn hoặc suy diễn nguyên nhân nội bộ mô hình. Báo rõ thống kê toàn phạm vi, kết quả từng trang và lỗi.
+- [x] 20. Hãy lập báo cáo giám sát tại khu vực X trong 30 ngày qua (hoặc khoảng ngày được chỉ định): thống kê toàn bộ lượt theo thời gian, kích thước và ba nhãn; so sánh từng tháng dương lịch với tháng liền trước cùng vùng, ghi rõ tháng lấy một phần và lượt/ngày; kiểm tra nhãn tàu sân bay theo câu 17, tổng hợp nhận định kèm bằng chứng, phạm vi và lỗi. Không tự khẳng định bất thường thống kê hoặc biến động hoạt động tàu.
 
 Tests:
 ## Level 4 — Phân tích và suy luận

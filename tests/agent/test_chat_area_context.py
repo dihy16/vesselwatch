@@ -4,9 +4,11 @@ from copy import deepcopy
 
 import pytest
 
-from ship_agent.chat_area import apply_chat_area, chat_area_note
-from file_server.area_models import AreaQueryInput
-from file_server.spatial import AreaGeometry, query_observations
+from ship_agent.runtime.chat_area import apply_chat_area
+from ship_agent.runtime.chat_area import chat_area_note
+from file_server.schemas.area_models import AreaQueryInput
+from file_server.services.spatial import AreaGeometry
+from file_server.services.spatial import query_observations
 from tests.file_server.test_chat_areas import SQUARE
 from tests.file_server.test_spatial import observation
 
@@ -48,3 +50,9 @@ def test_model_note_contains_current_status_but_no_coordinates_or_old_area_id():
     assert "Chưa có vùng" in chat_area_note(config(None))
     assert "lỗi server map" in chat_area_note(config(error="unavailable"))
     assert chat_area_note({}) == ""
+
+
+@pytest.mark.parametrize("query", [{"radius_nm": 20}, {"center_latitude": 18}, {"center_longitude": 109}])
+def test_explicit_center_or_distance_cannot_be_mixed_with_confirmed_chat_area(query):
+    with pytest.raises(ValueError):
+        apply_chat_area(query, config())

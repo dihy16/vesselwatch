@@ -1,27 +1,29 @@
 """Runtime config injection into the actual spatial tool (requires LangGraph)."""
 
 import pytest
+
 import json
 import httpx
 
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 
+import ship_agent.tools.areas as area_tools
+
 from langchain_core.tools import ToolException
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from ship_agent.agent import build_agent
-from ship_agent.tools import create_tools
+from ship_agent.runtime.agent import build_agent
+from ship_agent.tools.registry import create_tools
 from tests.file_server.test_chat_areas import SQUARE
 
 
 def test_tool_receives_hidden_chat_context_and_sends_polygon(monkeypatch):
-    from ship_agent import tools
     calls = []
     def query(payload, **kwargs):
         calls.append(payload)
         return {"status": "complete", "area_id": "a" * 32, "total": 4}
-    monkeypatch.setattr(tools, "request_area_query", query)
+    monkeypatch.setattr(area_tools, "request_area_query", query)
     tool = next(t for t in create_tools(observations=[]) if t.name == "query_ships_in_area")
     assert "config" not in tool.tool_call_schema.model_json_schema()["properties"]
     config = {"configurable": {"thread_id": "chat-1", "chat_area_context": {
@@ -38,13 +40,12 @@ def test_tool_receives_hidden_chat_context_and_sends_polygon(monkeypatch):
 
 
 def test_graph_passes_runtime_area_to_tool_without_model_coordinates_or_new_map(monkeypatch):
-    from ship_agent import tools
     payloads, requests = [], []
     def query(payload, **kwargs):
         payloads.append(payload)
         return {"status": "complete", "area_id": "a" * 32, "total": 2,
                 "ships": [], "map_url": "http://unrelated/result"}
-    monkeypatch.setattr(tools, "request_area_query", query)
+    monkeypatch.setattr(area_tools, "request_area_query", query)
     def model_response(request):
         body = json.loads(request.content)
         requests.append(body)

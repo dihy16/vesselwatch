@@ -6,9 +6,12 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.reference_review import (CarrierReferenceReview, reference_review_content,
-                                         reference_review_result, run_reference_reviews)
+from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_vision_image
+from ship_agent.vision.schemas import CarrierReferenceReview
+from ship_agent.workflows.reference_review import reference_review_content
+from ship_agent.workflows.reference_review import reference_review_result
+from ship_agent.workflows.reference_review import run_reference_reviews
 from tests.file_server.test_carrier_references import png, reference_folder
 
 
@@ -38,7 +41,7 @@ def test_pixel_payload_has_exactly_target_and_every_reference(library):
     content = reference_review_content(target, library)
     pixels = [base64.b64decode(item["image_url"]["url"].split(",", 1)[1])
               for item in content if item["type"] == "image_url"]
-    assert pixels == [target] + [image.data for image in library.images]
+    assert pixels == [prepare_vision_image(data).data for data in [target, *[image.data for image in library.images]]]
     assert library.description in json.dumps(content, ensure_ascii=False)
     assert all(image.reference_id in json.dumps(content) for image in library.images)
     assert "not_aircraft_carrier" not in json.dumps(content)

@@ -6,7 +6,7 @@ import json
 import httpx
 import pytest
 
-from ship_agent.area_client import request_missed_carrier_candidates
+from ship_agent.clients.area_client import request_missed_carrier_candidates
 from tests.file_server.test_observation_analysis import row
 
 

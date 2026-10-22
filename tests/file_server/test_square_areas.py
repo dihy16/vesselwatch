@@ -5,8 +5,8 @@ from math import asin, cos, radians, sin, sqrt
 from pydantic import ValidationError
 import pytest
 
-from file_server.area_models import AreaQueryInput, AreaRequest
-from file_server.spatial import AREA_CENTERS, AreaGeometry, named_center, square_polygon
+from file_server.schemas.area_models import AreaQueryInput, AreaRequest
+from file_server.services.spatial import AREA_CENTERS, AreaGeometry, named_center, square_polygon
 
 
 def distance_nm(a, b):
@@ -61,11 +61,30 @@ def test_square_and_explicit_polygon_are_exclusive():
         AreaRequest(area_name="Du Lâm", radius_nm=20, polygon=square_polygon(18, 109, 20))
 
 
+@pytest.mark.parametrize("kind", ["missed", "positive", "monitoring"])
+@pytest.mark.parametrize("area", [{"area_name": "Du Lâm", "radius_nm": 20},
+    {"center_latitude": 18.221, "center_longitude": 109.537, "radius_nm": 20}])
+def test_review_query_builders_preserve_base_or_coordinate_scope(kind, area):
+    from file_server.schemas.reviews import MissedCarrierRequest, FalseCarrierRequest
+    from file_server.schemas.monitoring import MonitoringRequest
+    from file_server.services.missed_carriers import candidate_query as missed_query
+    from file_server.services.false_carriers import candidate_query as positive_query
+    from file_server.services.monitoring_reports import monitoring_query
+
+    schema, builder = {"missed": (MissedCarrierRequest, missed_query),
+                       "positive": (FalseCarrierRequest, positive_query),
+                       "monitoring": (MonitoringRequest, monitoring_query)}[kind]
+    result = builder(schema(observed_from="2025-01-01", observed_to="2025-12-31", **area))
+    assert all(getattr(result, key) == value for key, value in area.items())
+    assert result.observed_from == "2025-01-01" and result.polygon is None
+
+
 def test_api_square_reuse_preview_handoff_and_redraw(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from file_server import area_queries
+    from file_server.api import area_queries
+    import file_server.services.carrier_hotspots as hotspots
     from tests.file_server.test_spatial import SQUARE, observation
 
     center = AREA_CENTERS["thanh_dao"]
@@ -84,6 +103,7 @@ def test_api_square_reuse_preview_handoff_and_redraw(tmp_path, monkeypatch):
         return "2 lượt phát hiện"
 
     monkeypatch.setattr(area_queries, "ask_area_agent", answer)
+    monkeypatch.setattr(hotspots, "dbscan_labels", lambda rows: [0] * len(rows))
     with TestClient(app) as client:
         result = client.post("/area-queries", json={"area_name": "Thanh Đảo", "radius_nm": 20, "limit": 1}).json()
         assert result["status"] == "complete" and result["total"] == 2
@@ -109,8 +129,20 @@ def test_api_square_reuse_preview_handoff_and_redraw(tmp_path, monkeypatch):
         analysis = client.post("/observation-analyses", json={"analysis": "dimension_mismatch",
             "area_name": "Thanh Đảo", "radius_nm": 20}).json()
         assert analysis["status"] == "complete" and analysis["total"] == 0
-        for endpoint in ("missed-carrier-candidates", "false-carrier-candidates", "carrier-investigation-candidates"):
+        for endpoint in ("missed-carrier-candidates", "false-carrier-candidates", "carrier-investigation-candidates",
+                         "carrier-label-review-candidates", "vessel-monitoring-reports"):
             candidates = client.post("/" + endpoint, json={"area_name": "Thanh Đảo", "radius_nm": 20,
                 "observed_from": "2026-10-01", "observed_to": "2026-10-01"}).json()
             assert candidates["status"] == "complete"
             assert candidates["total"] == (0 if endpoint.startswith("missed") else 2)
+            assert candidates["filters"]["radius_nm"] == 20
+            if endpoint == "vessel-monitoring-reports":
+                assert candidates["statistics"]["detection_count"] == 2
+                assert candidates["statistics_filters"]["radius_nm"] == 20
+        query = {"area_name": "Thanh Đảo", "radius_nm": 20,
+                 "observed_from": "2026-10-01", "observed_to": "2026-10-01"}
+        clusters = client.post("/carrier-hotspots", json=query).json()
+        assert clusters["total_detections"] == 2 and clusters["total"] == 1
+        members = client.post("/carrier-hotspot-candidates", json={**query,
+            "report_id": clusters["report_id"], "cluster_id": clusters["clusters"][0]["cluster_id"]}).json()
+        assert members["total"] == 2 and members["filters"]["radius_nm"] == 20

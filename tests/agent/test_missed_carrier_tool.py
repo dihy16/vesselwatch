@@ -13,10 +13,11 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.image_review import review_image_against_references
-from ship_agent.reference_review import reference_review_result
-from ship_agent.missed_carrier_tool import create_missed_carrier_tool
+from file_server.media.carrier_references import load_reference_library
+from file_server.media.image_assets import prepare_vision_image
+from ship_agent.vision.image_review import review_image_against_references
+from ship_agent.workflows.reference_review import reference_review_result
+from ship_agent.tools.missed_carrier_tool import create_missed_carrier_tool
 from tests.file_server.test_carrier_references import png, reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
 from tests.agent.test_reference_review import review
@@ -36,7 +37,7 @@ def test_actual_provider_receives_target_plus_every_reference_without_saved_scor
         content = body["messages"][1]["content"]
         pixels = [base64.b64decode(item["image_url"]["url"].split(",", 1)[1])
                   for item in content if item["type"] == "image_url"]
-        assert pixels == [target] + [image.data for image in library.images]
+        assert pixels == [prepare_vision_image(data).data for data in [target, *[image.data for image in library.images]]]
         assert row["ship_id"] not in json.dumps(body)
         assert "0.01" not in json.dumps(body)
         return httpx.Response(200, json={"id": "review", "object": "chat.completion", "created": 0,
@@ -50,7 +51,8 @@ def test_actual_provider_receives_target_plus_every_reference_without_saved_scor
 
 
 def test_tool_injects_area_reads_library_once_and_never_overwrites_label(tmp_path, monkeypatch):
-    from ship_agent import missed_carrier_tool as module, image_review
+    import ship_agent.tools.missed_carrier_tool as module
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     seen, loaded = [], []
     monkeypatch.setattr(module, "request_missed_carrier_candidates", lambda payload:
@@ -76,7 +78,8 @@ def test_tool_injects_area_reads_library_once_and_never_overwrites_label(tmp_pat
 
 
 def test_missing_references_fail_before_any_vision_request(monkeypatch):
-    from ship_agent import missed_carrier_tool as module, image_review
+    import ship_agent.tools.missed_carrier_tool as module
+    import ship_agent.vision.image_review as image_review
     monkeypatch.setattr(module, "request_missed_carrier_candidates", lambda _: response_payload())
     def missing():
         raise ValueError("No examples")
@@ -87,8 +90,9 @@ def test_missing_references_fail_before_any_vision_request(monkeypatch):
 
 
 def test_graph_uses_investigation_result_and_does_not_attach_a_second_map(tmp_path, monkeypatch):
-    from ship_agent.agent import build_agent
-    from ship_agent import missed_carrier_tool as module, image_review
+    from ship_agent.runtime.agent import build_agent
+    import ship_agent.tools.missed_carrier_tool as module
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     monkeypatch.setattr(module, "request_missed_carrier_candidates", lambda _: response_payload())
     monkeypatch.setattr(module, "load_carrier_references", lambda: library)

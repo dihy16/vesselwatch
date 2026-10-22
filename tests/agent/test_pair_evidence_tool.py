@@ -1,5 +1,7 @@
 """Question 15 uses the existing image tool twice with exactly one reference snapshot."""
 
+
+
 import json
 
 import pytest
@@ -7,23 +9,26 @@ import pytest
 pytest.importorskip("langchain_core")
 pytest.importorskip("langgraph")
 
+import ship_agent.tools.images as image_tools
+import ship_agent.tools.areas as area_tools
+
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
-from file_server.carrier_references import load_reference_library
-from ship_agent.image_review import create_image_review_tool
+from file_server.media.carrier_references import load_reference_library
+from ship_agent.tools.images import create_image_review_tool
 from tests.agent.test_pair_evidence import pair_rows, reviewed
 from tests.file_server.test_carrier_references import png, reference_folder
 
 
 def test_pair_uses_same_complete_library_for_both_images_once(tmp_path, monkeypatch):
-    from ship_agent import image_review
+    import ship_agent.vision.image_review as image_review
     reference_folder(tmp_path)
     (tmp_path / "second.png").write_bytes(png("red"))
     library = load_reference_library(tmp_path)
     first, second = pair_rows()
     loaded, seen = [], []
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: loaded.append(True) or library)
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: loaded.append(True) or library)
     def compare(row, refs, **kwargs):
         seen.append((row["observation_id"], refs))
         assert refs is library and len(refs.images) == 2
@@ -38,10 +43,10 @@ def test_pair_uses_same_complete_library_for_both_images_once(tmp_path, monkeypa
 
 
 def test_invalid_pair_does_not_load_references_or_call_vision(monkeypatch):
-    from ship_agent import image_review
+    import ship_agent.vision.image_review as image_review
     first, second = pair_rows()
     second["width_m"] = 200
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: pytest.fail("No library for invalid pair"))
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: pytest.fail("No library for invalid pair"))
     tool = create_image_review_tool([first, second], data_source="file_server")
     with pytest.raises(ToolException, match="vượt sai lệch"):
         tool.invoke({"observation_id": "positive", "comparison_observation_id": "negative", "use_carrier_references": True})
@@ -50,10 +55,10 @@ def test_invalid_pair_does_not_load_references_or_call_vision(monkeypatch):
 
 
 def test_failed_second_image_does_not_create_a_fabricated_explanation(tmp_path, monkeypatch):
-    from ship_agent import image_review
+    import ship_agent.vision.image_review as image_review
     library = load_reference_library(reference_folder(tmp_path))
     first, second = pair_rows()
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: library)
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: library)
     def compare(row, refs, **kwargs):
         if row["observation_id"] == "negative":
             raise ToolException("Second image failed")
@@ -65,14 +70,14 @@ def test_failed_second_image_does_not_create_a_fabricated_explanation(tmp_path, 
 
 
 def test_graph_selects_a_pair_then_compares_each_image_with_the_library(tmp_path, monkeypatch):
-    from ship_agent import image_review, tools as module
-    from ship_agent.agent import build_agent
+    import ship_agent.vision.image_review as image_review
+    from ship_agent.runtime.agent import build_agent
     library = load_reference_library(reference_folder(tmp_path))
     first, second = pair_rows()
-    monkeypatch.setattr(module, "request_observation_analysis", lambda query, **kwargs: {
+    monkeypatch.setattr(area_tools, "request_observation_analysis", lambda query, **kwargs: {
         "status": "complete", "total": 100, "limit": 1, "offset": 0,
         "pairs": [{"aircraft_carrier": first, "not_aircraft_carrier": second}]})
-    monkeypatch.setattr(image_review, "load_carrier_references", lambda: library)
+    monkeypatch.setattr(image_tools, "load_carrier_references", lambda: library)
     monkeypatch.setattr(image_review, "review_image_against_references", lambda row, refs, **kwargs:
         reviewed(row, refs, row["classification"]))
     class Planner:

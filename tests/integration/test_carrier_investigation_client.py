@@ -6,7 +6,7 @@ import json
 import httpx
 import pytest
 
-from ship_agent.area_client import request_carrier_investigation_candidates
+from ship_agent.clients.area_client import request_carrier_investigation_candidates
 from tests.integration.test_false_carrier_client import positive_payload
 from tests.integration.test_missed_carrier_client import QUERY
 

@@ -17,7 +17,7 @@ https://www.marineregions.org/disclaimer.php.
 
 ## Truy vấn mở rộng từ tâm
 
-`AREA_CENTERS` trong `file_server/spatial.py` lưu các điểm tham chiếu WGS84
+`AREA_CENTERS` trong `file_server/services/spatial.py` lưu các điểm tham chiếu WGS84
 (không phải ranh giới căn cứ), kiểm tra nguồn ngày 2026-10-21:
 
 | Khóa | Điểm tham chiếu (vĩ độ, kinh độ) | Nguồn |

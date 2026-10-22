@@ -13,9 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from file_server.chat_areas import AreaConflict, ChatAreaStore
-from file_server.spatial import AREA_NAMES, AREA_CENTERS, predefined_geometry, square_polygon
-from file_server.map_bundle import bundle_modules, load_bundle
+from file_server.storage.chat_areas import AreaConflict
+from file_server.storage.chat_areas import ChatAreaStore
+from file_server.services.spatial import AREA_NAMES, AREA_CENTERS, square_polygon
+from file_server.services.spatial import predefined_geometry
+from file_server.data.map_bundle import bundle_modules
+from file_server.data.map_bundle import load_bundle
 
 
 def inject_chat_controls(html):

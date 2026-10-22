@@ -2,8 +2,8 @@
 
 from langchain_core.runnables import RunnableConfig
 
-from ship_agent.agent import build_agent
-from ship_agent.file_server_client import load_observations
+from ship_agent.clients.file_server_client import load_observations
+from ship_agent.runtime.agent import build_agent
 
 
 # LangGraph imports this entry point at startup; share the snapshot across runs.

@@ -8,7 +8,8 @@ from threading import Thread
 import httpx
 import pytest
 
-from file_server.chat_areas import AreaConflict, ChatAreaStore
+from file_server.storage.chat_areas import AreaConflict
+from file_server.storage.chat_areas import ChatAreaStore
 from scripts.run_vessel_map_demo import inject_chat_controls, make_session_handler
 
 SQUARE = {"type": "Polygon", "coordinates": [[[110, 15], [112, 15], [112, 17], [110, 17], [110, 15]]]}
@@ -111,7 +112,7 @@ def test_template_injection_does_not_replace_existing_map():
 
 
 def test_chat_map_square_preview_and_persistence(session_server):
-    from file_server.spatial import AREA_CENTERS, square_polygon
+    from file_server.services.spatial import AREA_CENTERS, square_polygon
 
     base, _ = session_server
     center = AREA_CENTERS["du_lam"]

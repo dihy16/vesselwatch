@@ -1,1 +1,1 @@
-"""Telegram metadata and image serving, independent of the LangGraph agent."""
+"""Observation data API, spatial analysis, persistence and media services."""
