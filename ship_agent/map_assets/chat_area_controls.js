@@ -31,7 +31,7 @@ const ChatAreaControls = (() => {
     const centers = new Set(["thanh_dao", "du_lam", "long_pha"]);
     function updateRadius() { el("radius-fields").hidden = !centers.has(el("choice").value); }
     updateRadius();
-    let revision = 0, initialized = false, busy = false, version = 0;
+    let revision = 0, initialized = false, busy = false, version = 0, dirty = false, polling = false;
     let mode = null, points = [], geometry = null, layer = null;
     function status(text) { el("status").textContent = text; }
     function setBusy(value) {
@@ -65,25 +65,31 @@ const ChatAreaControls = (() => {
       if (marker !== version) return;
       geometry = feature.geometry; paint(); fit();
     }
+    async function applySaved(saved, marker) {
+      if (!Number.isInteger(saved.revision) || saved.revision < 0 || !("active_area" in saved)) {
+        throw new Error("Phản hồi vùng đã lưu không hợp lệ.");
+      }
+      revision = saved.revision; initialized = true; dirty = false;
+      mode = null; points = []; geometry = null;
+      el("choice").value = saved.active_area?.type === "preset" ? saved.active_area.key : "custom";
+      updateRadius();
+      if (saved.active_area?.type === "preset") await loadPreset(saved.active_area.key, marker);
+      else { geometry = saved.active_area; paint(); if (geometry) fit(); }
+      status(saved.active_area ? "Vùng đã lưu. Quay lại chat để hỏi về vùng này." : "Chọn hoặc vẽ một vùng rồi bấm Xác nhận.");
+    }
     async function reload() {
       if (busy) return;
       const marker = ++version;
       setBusy(true);
       try {
         const saved = await request(`/map-sessions/${session}`);
-        revision = saved.revision; initialized = true;
-        mode = null; points = []; geometry = null;
-        el("choice").value = saved.active_area?.type === "preset" ? saved.active_area.key : "custom";
-        updateRadius();
-        if (saved.active_area?.type === "preset") await loadPreset(saved.active_area.key, marker);
-        else { geometry = saved.active_area; paint(); if (geometry) fit(); }
-        status(saved.active_area ? "Vùng đã lưu. Quay lại chat để hỏi về vùng này." : "Chọn hoặc vẽ một vùng rồi bấm Xác nhận.");
+        await applySaved(saved, marker);
       } catch (error) { status(`Chưa tải được vùng: ${error.message}`); }
       finally { setBusy(false); }
     }
     function begin(kind) {
       if (busy || !initialized) return;
-      version++; mode = kind; points = []; geometry = null;
+      version++; dirty = true; mode = kind; points = []; geometry = null;
       el("choice").value = "custom"; paint();
       updateRadius();
       status(kind === "rectangle" ? "Bấm hai góc đối diện. Vùng cũ còn hiệu lực đến khi xác nhận." :
@@ -116,8 +122,9 @@ const ChatAreaControls = (() => {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ active_area: active, expected_revision: revision })
         });
-        revision = saved.revision;
-        if (clear) { version++; mode = null; points = []; geometry = null; el("choice").value = "custom"; paint(); }
+        version++; revision = saved.revision;
+        dirty = false;
+        if (clear) { mode = null; points = []; geometry = null; el("choice").value = "custom"; paint(); }
         updateRadius();
         status(clear ? "Đã xóa vùng của cuộc chat." : "Đã lưu vùng. Quay lại chat và hỏi về vùng vừa chọn.");
       } catch (error) { status(`Chưa cập nhật vùng: ${error.message}`); }
@@ -131,7 +138,7 @@ const ChatAreaControls = (() => {
     el("reload").addEventListener("click", reload);
     async function selectArea() {
       const marker = ++version;
-      mode = null; points = []; geometry = null; paint();
+      dirty = true; mode = null; points = []; geometry = null; paint();
       updateRadius();
       if (el("choice").value === "custom") { status("Chọn cách vẽ vùng tùy ý."); return; }
       setBusy(true);
@@ -141,6 +148,26 @@ const ChatAreaControls = (() => {
     }
     el("choice").addEventListener("change", selectArea);
     el("radius").addEventListener("change", selectArea);
+    async function syncSaved() {
+      if (busy || polling || !initialized || document.hidden) return;
+      polling = true;
+      const marker = version;
+      let applying = false;
+      try {
+        const saved = await request(`/map-sessions/${session}`);
+        if (busy || marker !== version || saved.revision <= revision) return;
+        if (dirty) {
+          status("Vùng đã đổi từ chat/cửa sổ khác. Bản vẽ của bạn chưa được lưu; bấm Tải vùng đã lưu để nhận vùng mới.");
+          return;
+        }
+        applying = true; setBusy(true);
+        await applySaved(saved, ++version);
+      } catch (error) {
+        if (applying || (!busy && marker === version)) status("Chưa đồng bộ được vùng. Bấm Tải vùng đã lưu để thử lại.");
+      } finally { polling = false; if (applying) setBusy(false); }
+    }
+    const syncTimer = setInterval(syncSaved, 2000);
+    map.on("unload", () => clearInterval(syncTimer));
     return reload();
   }
   return { attach };

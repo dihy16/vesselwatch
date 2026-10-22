@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from file_server.schemas.area_models import AreaQueryInput
 from file_server.schemas.reviews import FalseCarrierScope, MissedCarrierScope
@@ -24,14 +24,25 @@ class CarrierReportInput(CountShipsInput):
     )
 
 
-class ChatAreaQueryInput(AreaQueryInput):
+class ChatAreaScopeInput(AreaQueryInput):
     use_chat_area: bool = Field(
         default=False,
         description="Dùng đúng một vùng đã xác nhận trên map của cuộc chat hiện tại; bỏ area_name và area_id.",
     )
 
 
-class ObservationAnalysisInput(ChatAreaQueryInput):
+class ChatAreaQueryInput(ChatAreaScopeInput):
+    set_as_chat_area: bool = Field(default=False,
+        description="Chọn/lưu vùng này cho chat và hiện trên map. Chỉ true khi người dùng yêu cầu chọn/đổi vùng; dùng tên vùng có sẵn hoặc tâm và radius_nm, không kèm use_chat_area.")
+
+    @model_validator(mode="after")
+    def separate_selection_from_saved_area(self):
+        if self.set_as_chat_area and self.use_chat_area:
+            raise ValueError("Chọn vùng mới và dùng vùng đã lưu là hai thao tác riêng.")
+        return self
+
+
+class ObservationAnalysisInput(ChatAreaScopeInput):
     analysis: Literal["dimension_mismatch", "similar_dimensions"] = Field(
         description="dimension_mismatch: kích thước phù hợp nhưng nhãn âm; similar_dimensions: cặp khác nhãn có kích thước tương đồng.")
     similarity_tolerance_pct: float = Field(default=10, ge=0, le=100)

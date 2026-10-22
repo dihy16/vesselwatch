@@ -185,6 +185,7 @@ def test_symlink_outside_image_root_is_not_served(dataset, tmp_path):
 
 
 def test_settings_from_config_file(dataset, monkeypatch):
+    monkeypatch.setattr(config, "DATA_SOURCE", "telegram")
     for name, value in {
         "TELEGRAM_METADATA_PATH": dataset.telegram_path,
         "TELEGRAM_IMAGE_ROOT": dataset.image_root,

@@ -6,6 +6,7 @@ from langchain_core.tools import ToolException, tool
 
 from file_server.schemas.area_models import AreaQueryInput, ObservationAnalysisRequest
 from ship_agent.clients.area_client import request_area_query, request_observation_analysis
+from ship_agent.clients.chat_area_client import save_chat_area, selection_area, selection_context
 from ship_agent.runtime.chat_area import apply_chat_area, chat_area_context
 from ship_agent.tools.schemas import ChatAreaQueryInput, ObservationAnalysisInput, Classification
 
@@ -13,7 +14,7 @@ from ship_agent.tools.schemas import ChatAreaQueryInput, ObservationAnalysisInpu
 def create_area_tools(context):
     data_source = context.data_source
 
-    @tool(args_schema=ChatAreaQueryInput)
+    @tool(args_schema=ChatAreaQueryInput, response_format="content_and_artifact")
     def query_ships_in_area(
         area_name: str | None = None, area_id: str | None = None,
         center_latitude: float | None = None, center_longitude: float | None = None,
@@ -25,8 +26,8 @@ def create_area_tools(context):
         min_length_m: float | None = None, max_length_m: float | None = None,
         min_width_m: float | None = None, max_width_m: float | None = None,
         limit: int = 20, offset: int = 0,
-        use_chat_area: bool = False, config: RunnableConfig = None,
-    ) -> dict:
+        use_chat_area: bool = False, set_as_chat_area: bool = False, config: RunnableConfig = None,
+    ) -> tuple:
         """Truy vấn lượt phát hiện theo vùng, ngày, kích thước và nhãn.
 
         Biển Đông và Vịnh Bắc Bộ có polygon lưu sẵn. Thanh Đảo (Yuchi),
@@ -49,6 +50,11 @@ def create_area_tools(context):
         bỏ area_name/area_id. Runtime tự cung cấp polygon đã xác nhận của chat;
         không tự nhập tọa độ hoặc lấy mã vùng cũ từ lịch sử. Chưa chọn vùng
         thì báo cần xác nhận, không chuyển thành truy vấn toàn bộ dữ liệu.
+        Khi người dùng yêu cầu CHỌN/ĐỔI vùng cho cuộc chat, dùng set_as_chat_area=true
+        với tên có sẵn hoặc hình vuông từ tâm/radius_nm. Lưu vùng và hiện lên map;
+        các câu tiếp theo dùng use_chat_area=true. Truy vấn thông thường để false.
+        Không kèm use_chat_area=true; chọn vùng bằng một tool call riêng trước khi
+        gọi các tool khác dùng vùng đó. Không cần ngày nếu chỉ chọn vùng.
         """
         query = AreaQueryInput(
             area_name=area_name, area_id=area_id, observed_from=observed_from,
@@ -60,8 +66,23 @@ def create_area_tools(context):
         )
         try:
             context = chat_area_context(config)
+            area = None
+            if set_as_chat_area:
+                if use_chat_area:
+                    raise ValueError("Không chọn vùng mới và dùng vùng đã lưu cùng lúc.")
+                selection_context(context)
+                area = selection_area(query)
             payload = apply_chat_area(query.model_dump(), config) if use_chat_area else query.model_dump()
             result = request_area_query(payload, data_source=data_source)
+            artifact = None
+            if set_as_chat_area:
+                if result.get("status") != "complete":
+                    raise ValueError("Chưa xác định được vùng để lưu; hãy chọn vùng có sẵn hoặc vẽ trên map.")
+                saved = save_chat_area(context, area)
+                artifact = {"chat_area_selection": saved}
+                result = {**result, "chat_area_selected": True, "chat_area_revision": saved["revision"],
+                          "query_scope": "chat_active_area",
+                          "message": "Đã lưu vùng đang chọn của chat. Map sẽ tự cập nhật; câu tiếp theo có thể hỏi về vùng này."}
             if context:
                 # The model needs counts/status, not the chat session's URL capability.
                 result = {**result, "persistent_map": True}
@@ -71,8 +92,10 @@ def create_area_tools(context):
             if use_chat_area:
                 result.pop("area_id", None)
                 result.update(query_scope="chat_active_area", chat_area_revision=context["revision"])
-            return result
+            return result, artifact
         except (httpx.HTTPError, ValueError) as exc:
+            if set_as_chat_area:
+                raise ToolException("Chưa xác nhận chọn/lưu vùng thành công. Kiểm tra map, MAP_API_URL của LangGraph và phiên bản vùng; tải lại vùng rồi thử lại.") from exc
             if use_chat_area and isinstance(exc, ValueError):
                 raise ToolException(str(exc)) from exc
             raise ToolException("Chưa truy vấn được vùng. Kiểm tra data server và mã vùng; "

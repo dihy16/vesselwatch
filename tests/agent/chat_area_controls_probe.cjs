@@ -16,8 +16,9 @@ async function setup(active = null) {
   const root = { style: {}, innerHTML: "", querySelector(selector) {
     return el(selector.match(/data-area="([^"]+)"/)[1]);
   }, querySelectorAll() { return [...elements.values()]; } };
-  const layer = () => ({ addTo() { return this; }, getBounds() { return { isValid: () => true }; } });
-  const map = { events: {}, on(name, fn) { this.events[name] = fn; }, removeLayer() {}, fitBounds() {} };
+  const layer = (geometry) => { map.shape = clone(geometry); return { addTo() { return this; }, getBounds() { return { isValid: () => true }; } }; };
+  const map = { events: {}, fits: 0, on(name, fn) { this.events[name] = fn; },
+    removeLayer() { this.shape = null; }, fitBounds() { this.fits++; } };
   const L = { control: () => ({ addTo() { this.onAdd(); } }), geoJSON: layer, polyline: layer,
     DomUtil: { create: () => root }, DomEvent: { disableClickPropagation() {}, disableScrollPropagation() {} } };
   const calls = [];
@@ -32,14 +33,19 @@ async function setup(active = null) {
     }
     return { ok: true, json: async () => clone(saved) };
   };
+  const intervals = new Map();
   const context = { window: { location: { search: `?map_session=${token}` } }, URLSearchParams,
-    AbortController, setTimeout, clearTimeout, fetch };
+    AbortController, setTimeout, clearTimeout, fetch,
+    setInterval(fn, delay) { assert.equal(delay, 2000); intervals.set(fn, fn); return fn; },
+    clearInterval(id) { intervals.delete(id); } };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(process.argv[2], "utf8") + "\nglobalThis.controls = ChatAreaControls;", context);
   await context.controls.attach({ map, L, document: {} });
   return { el, calls, click: (name) => el(name).events.click(),
     point: (lng, lat) => map.events.click({ latlng: { lng, lat } }),
-    saved: () => clone(saved), setConflict: (value) => { conflict = value; } };
+    saved: () => clone(saved), setConflict: (value) => { conflict = value; }, map,
+    remote(area) { saved = { revision: saved.revision + 1, active_area: clone(area) }; },
+    async poll() { for (const fn of intervals.values()) await fn(); }, intervals };
 }
 
 (async () => {
@@ -84,5 +90,26 @@ async function setup(active = null) {
   assert.equal(centered.calls.at(-1).url, "/query-areas/du_lam?radius_nm=20");
   await centered.click("confirm");
   assert.deepEqual(centered.saved().active_area, square, "Store computed geometry for chat follow-ups");
+  const synced = await setup();
+  synced.remote(square);
+  await synced.poll();
+  assert.deepEqual(synced.map.shape, square, "Chat selection appears on the mounted map");
+  assert.equal(synced.map.fits, 1);
+  await synced.poll();
+  assert.equal(synced.map.fits, 1, "Unchanged revisions preserve the viewport");
+  synced.click("polygon"); synced.point(113, 16); synced.point(114, 16);
+  const draft = clone(synced.map.shape);
+  synced.remote({ type: "preset", key: "vinh_bac_bo" });
+  await synced.poll();
+  assert.deepEqual(synced.map.shape, draft, "A remote selection never discards local draft vertices");
+  assert.match(synced.el("status").textContent, /Tải vùng đã lưu/);
+  synced.point(114, 17); synced.click("finish"); await synced.click("confirm");
+  assert.match(synced.el("status").textContent, /Conflict/, "A stale draft cannot overwrite chat selection");
+  await synced.click("reload");
+  assert.equal(synced.el("choice").value, "vinh_bac_bo");
+  synced.remote(null); await synced.poll();
+  assert.equal(synced.map.shape, null, "Remote clear removes the selected area");
+  synced.map.events.unload();
+  assert.equal(synced.intervals.size, 0, "Unmounting the map stops polling");
   console.log("Chat area drawing/confirm/clear/restore/conflict probe passed");
 })().catch((error) => { console.error(error); process.exit(1); });

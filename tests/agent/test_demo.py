@@ -161,8 +161,9 @@ def test_packaged_demo_matches_recording_plan_without_duplicate_carrier_crops(mo
 
 def test_demo_search_counts_and_report_share_the_same_source(demo_snapshot, monkeypatch):
     import ship_agent.tools.registry as tools_module
+    import ship_agent.tools.reports as report_tools
     monkeypatch.setattr(tools_module, "load_observations", lambda: pytest.fail("No production API in demo"))
-    monkeypatch.setattr(tools_module, "load_daily_carrier_report", lambda *a: pytest.fail("No report HTTP in demo"))
+    monkeypatch.setattr(report_tools, "load_daily_carrier_report", lambda *a: pytest.fail("No report HTTP in demo"))
     count, search, report, *_ = create_tools(data_source="demo")
     found = search.invoke({"classification": "aircraft_carrier", "min_length_m": 330})
     assert found["reference_date"] == "2025-12-30"
@@ -286,7 +287,7 @@ def test_demo_graph_attaches_current_image_when_model_omits_it(demo_snapshot, st
     arguments = ({"ship_id": "source-ship-1"} if media == "ship" else {
         "observed_from": "2025-12-24", "observed_to": "2025-12-30", "output_format": "png",
     })
-    expected_image = "![source-ship-1](http://viewer:8002/images/DEMO_001)"
+    expected_image = "[![source-ship-1](http://viewer:8002/images/DEMO_001?preview=1)](http://viewer:8002/images/DEMO_001?original=1)"
     if media == "chart":
         report = create_tools(data_source="demo")[2].invoke(arguments)
         expected_image = f"![Biểu đồ lượt dự đoán tàu sân bay theo ngày]({report['chart_url']})"

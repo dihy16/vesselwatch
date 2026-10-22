@@ -1,12 +1,43 @@
 """Select current-turn tool artifacts and assemble ephemeral pixel context."""
 
 import json
+from copy import deepcopy
 
 import httpx
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException
 
 from ship_agent.runtime.visual_context import build_visual_content, latest_visual_input
+from ship_agent.runtime.chat_area import chat_area_context
+from file_server.storage.chat_areas import validate_active_area
+
+
+def config_with_selected_area(messages, config):
+    """Use a successful selection only in this turn; the next turn gets a fresh Pipe snapshot."""
+    try:
+        context = chat_area_context(config)
+    except ValueError:
+        return config  # Existing note/tool validation reports a malformed runtime context.
+    if context is None:
+        return config
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        if not isinstance(message, ToolMessage) or message.name != "query_ships_in_area" or message.status == "error":
+            continue
+        selected = (message.artifact or {}).get("chat_area_selection")
+        if selected is None:
+            continue
+        if (any(selected.get(key) != context[key] for key in ("user_id", "chat_id"))
+                or type(selected.get("base_revision")) is not int
+                or type(selected.get("revision")) is not int
+                or selected["base_revision"] < context.get("revision", 0)
+                or selected["revision"] != selected["base_revision"] + 1):
+            raise ValueError("Kết quả chọn vùng không thuộc phiên hiện tại.")
+        area = validate_active_area(selected["active_area"])
+        updated = {**context, "active_area": area, "revision": selected["revision"]}
+        return {**config, "configurable": {**config.get("configurable", {}), "chat_area_context": deepcopy(updated)}}
+    return config
 
 
 def current_image_results(messages):

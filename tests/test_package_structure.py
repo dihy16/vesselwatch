@@ -1,6 +1,7 @@
 """Regression coverage for package imports, resources and supported entry points."""
 
 import ast
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -106,10 +107,12 @@ def test_supported_agent_entry_points_and_public_tool_export():
 
     assert build_agent is runtime_builder and create_tools is registry
     result = subprocess.run([sys.executable, "-m", "ship_agent", "--mock-tools", "--today", "2026-10-13"],
-                            cwd=ROOT, check=True, capture_output=True, text=True, timeout=30)
+                            cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8",
+                            env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=30)
     assert '"count_ships"' in result.stdout
     result = subprocess.run([sys.executable, "-m", "ship_agent.image_review", "--help"],
-                            cwd=ROOT, check=True, capture_output=True, text=True, timeout=30)
+                            cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8",
+                            env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=30)
     assert "--observation-id" in result.stdout
 
 
@@ -121,9 +124,9 @@ def test_supported_app_entry_point_registers_all_routes_without_reading_data(mon
     def forbidden(*args, **kwargs):
         raise AssertionError("Only lifespan loads data")
     monkeypatch.setattr(app_module, "load_store", forbidden)
-    paths = {route.path for route in create_app().routes}
+    paths = set(create_app().openapi()["paths"])
     assert paths >= {
-        "/health", "/observations", "/ships/{ship_id:path}", "/images/{image_id}",
+        "/health", "/observations", "/ships/{ship_id}", "/images/{image_id}",
         "/carrier-references", "/carrier-references/images/{reference_id}",
         "/reports/daily-carriers", "/charts/daily-carriers.png", "/query-areas/{key}",
         "/area-queries", "/area-queries/{area_id}", "/area-queries/{area_id}/confirm",

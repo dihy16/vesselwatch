@@ -204,7 +204,8 @@ def test_graph_attaches_small_iframe_and_keeps_leaflet_out_of_llm_context(demo_s
             # Follow-up includes only the small wrapper, and must not reattach the map.
             result = graph.invoke({"messages": [*inputs["messages"], answer, HumanMessage(content="Cảm ơn.")]})
             assert "<iframe" not in result["messages"][-1].text
-            assert len(json.dumps(requests[-1]["messages"])) < 13000
+            chat_messages = [m for m in requests[-1]["messages"] if m["role"] != "system"]
+            assert len(json.dumps(chat_messages)) < 2000
 
 
 def test_artifact_escapes_url_attributes():

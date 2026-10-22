@@ -81,6 +81,30 @@ Agent cũng nhận tên căn cứ kèm khoảng cách hoặc tọa độ tâm k�
 trong câu hỏi; khi đó truy vấn dùng vùng được chỉ định, không thay vùng đã lưu của
 chat. Tâm, nguồn và công thức xem [tài liệu vùng](../file_server/area_data/README.md).
 
+### Chọn vùng bằng chat
+
+Sau khi mở map, gửi **“Chọn vùng hình vuông quanh căn cứ Du Lâm, mở rộng 20 hải lý
+về mỗi hướng để phân tích tiếp.”** Agent gọi `query_ships_in_area` với
+`area_name="Du Lâm"`, `radius_nm=20`, `set_as_chat_area=true`. Chỉ khi người dùng
+yêu cầu chọn/đổi vùng mới bật tùy chọn này. Tool tạo hình vuông, truy vấn rồi lưu
+vùng vào đúng phiên chat bằng API hiện có. Không cần nhấn xác nhận lần nữa trên map.
+Biển Đông/Vịnh Bắc Bộ và hình vuông từ tọa độ người dùng cung cấp cũng được hỗ trợ.
+
+LangGraph dùng `MAP_API_URL` trong `ship_agent/config.py` (mặc định
+`http://127.0.0.1:8000`). Đây là địa chỉ nhìn từ LangGraph; không lấy URL trình duyệt
+trong `MAP_URL` để ghi dữ liệu. Pipe hiện tại đã cung cấp định danh phiên và revision,
+không cần copy Function mới hoặc thêm Valve. Chưa có phiên hoặc sai revision thì báo
+lỗi, không tự ghi đè vùng mới hơn.
+
+Map kiểm tra revision mỗi 2 giây và cập nhật lớp vùng ngay trên map đang mở. Khi
+không có thay đổi thì giữ viewport; khi có bản vẽ dở thì giữ bản vẽ, báo xung đột và
+yêu cầu **Tải vùng đã lưu**. Cơ chế này đồng bộ vùng được chọn, chưa đồng bộ tập tàu
+trong kết quả truy vấn hoặc bộ lọc ngày/score trên map.
+
+Câu tiếp theo **“Trong vùng đã vẽ, năm 2025…”** dùng `use_chat_area=true`. Trong
+cùng một lượt, tool sau khi chọn dùng revision vừa lưu; lượt chat mới đọc snapshot
+mới từ Pipe. Truy vấn thông thường với `set_as_chat_area=false` không đổi vùng.
+
 ## Lưu trữ và API
 
 Mỗi user/chat có một file `data/map_sessions/<hash-user-chat>.json`, được ignore:
@@ -114,7 +138,10 @@ ghi cùng revision sẽ có một cửa sổ nhận 409. Dùng **Tải vùng đ�
 tiếp ở cửa sổ đó.
 
 Pipe đọc một snapshot cho mỗi câu hỏi. Mọi tool call trong run dùng cùng snapshot,
-kể cả khi vùng được thay giữa lúc agent trả lời; câu hỏi kế tiếp nhận vùng mới.
+kể cả khi người dùng đổi vùng trên map giữa lúc agent trả lời; câu hỏi kế tiếp nhận
+vùng mới. Ngoại lệ có chủ đích: `set_as_chat_area=true` lưu thành công cập nhật vùng
+cho các tool tiếp theo trong chính lượt đó. Agent phải chọn vùng bằng một tool call
+riêng trước khi truy vấn tiếp, không chạy chọn và dùng vùng song song.
 `chat_id` tiếp tục là `thread_id` như Pipe cũ.
 
 API này chạy trong mạng riêng/SSH tunnel hiện tại. URL có mã phiên cho phép đọc/ghi

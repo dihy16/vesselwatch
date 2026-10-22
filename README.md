@@ -76,6 +76,10 @@ Tool `query_ships_in_area` hỗ trợ dữ liệu thật và demo:
   Có thể dùng tọa độ người dùng cung cấp với `center_latitude`, `center_longitude`
   và `radius_nm`. Chưa nhập khoảng cách thì agent hỏi thêm. Map cho chọn căn cứ,
   nhập hải lý và xem trước ô vuông trước khi xác nhận. Xem [tâm và công thức](file_server/area_data/README.md).
+- **Chọn vùng bằng chat:** `query_ships_in_area(set_as_chat_area=true)` lưu vùng
+  có sẵn/hình vuông vào phiên chat, map đang mở tự cập nhật. Chỉ bật khi người dùng
+  yêu cầu chọn/đổi vùng; truy vấn thông thường giữ `false`. Câu tiếp theo dùng
+  `use_chat_area=true`. LangGraph kết nối map qua `MAP_API_URL` trong `ship_agent/config.py`.
 - **Khu vực khác chưa có tâm hoặc mô tả mơ hồ:** mở bản đồ cho người dùng tự vẽ rectangle/polygon
   rồi bấm **Xác nhận và hỏi agent**. Không tạo polygon gợi ý.
 

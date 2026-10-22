@@ -19,6 +19,7 @@ from tests.integration.test_label_review_client import payload
 
 def test_search_only_chat_response_is_resized_without_fetching_pixels():
     row = payload()["ships"][0]
+    row["images"][0]["url"] = "http://public/images/" + row["images"][0]["image_id"]
     before = deepcopy(row)
     raw = row["images"][0]["url"]
 

@@ -4,7 +4,7 @@ from html.parser import HTMLParser
 import re
 from urllib.parse import urlsplit
 
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 
 _HTML_FENCE = re.compile(
@@ -90,9 +90,13 @@ def _compact_text(text: str) -> str:
 
 
 def messages_for_llm(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Sanitize only assistant text; retain user inputs, tool results, and IDs verbatim."""
+    """Compact assistant HTML and omit runtime artifacts; retain tool content and IDs."""
     result = []
     for message in messages:
+        if isinstance(message, ToolMessage) and message.artifact is not None:
+            # Runtime selection geometry is for tools, not LLM context.
+            result.append(message.model_copy(update={"artifact": None}))
+            continue
         if not isinstance(message, AIMessage):
             result.append(message)
             continue

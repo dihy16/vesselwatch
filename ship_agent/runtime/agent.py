@@ -5,7 +5,7 @@ import os
 import re
 from uuid import uuid4
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import ToolException
 from langchain_openai import ChatOpenAI
@@ -18,6 +18,7 @@ from ship_agent.artifacts.image_previews import has_image_results, render_chat_i
 from ship_agent.artifacts.monitoring_artifacts import render_monitoring_artifact
 from ship_agent.artifacts.report_artifacts import render_carrier_artifact
 from ship_agent.runtime.attachments import _chat_visual_message, _current_reports, _current_maps, current_image_results
+from ship_agent.runtime.attachments import config_with_selected_area
 from ship_agent.runtime.chat_area import chat_area_note
 from ship_agent.runtime.dates import DataSource, resolve_reference_date
 from ship_agent.runtime.llm_context import messages_for_llm
@@ -47,6 +48,7 @@ def build_agent(
     prompt = build_system_prompt(reference_date, data_source)
 
     def call_model(state: MessagesState, config: RunnableConfig):
+        config = config_with_selected_area(state["messages"], config)
         reports = _current_reports(state["messages"])
         maps = _current_maps(state["messages"])
         image_results = current_image_results(state["messages"])
@@ -110,9 +112,19 @@ def build_agent(
                 response = response.model_copy(update={"id": str(uuid4()), "content": displayed})
         return {"messages": [response]}
 
+    tool_node = ToolNode(tools, handle_tool_errors=(ToolException, ValidationError))
+
+    def call_tools(state: MessagesState, config: RunnableConfig):
+        calls = state["messages"][-1].tool_calls
+        if len(calls) > 1 and any(call["name"] == "query_ships_in_area"
+                                 and call["args"].get("set_as_chat_area") for call in calls):
+            return {"messages": [ToolMessage(name=call["name"], tool_call_id=call["id"], status="error",
+                content="Hãy chọn vùng bằng một tool call riêng trước, rồi mới gọi các tool khác.") for call in calls]}
+        return tool_node.invoke(state, config=config_with_selected_area(state["messages"], config))
+
     graph = StateGraph(MessagesState)
     graph.add_node("agent", call_model)
-    graph.add_node("tools", ToolNode(tools, handle_tool_errors=(ToolException, ValidationError)))
+    graph.add_node("tools", call_tools)
     graph.add_edge(START, "agent")
     graph.add_conditional_edges("agent", tools_condition)
     graph.add_edge("tools", "agent")

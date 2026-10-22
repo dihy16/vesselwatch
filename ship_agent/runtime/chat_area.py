@@ -49,10 +49,10 @@ def chat_area_note(config):
             state = "Chưa đọc được vùng do lỗi server map; không dùng vùng hay kết quả cũ."
         else:
             area = validate_active_area(context.get("active_area"))
-            state = ("Chưa có vùng được xác nhận; yêu cầu vẽ/chọn và Xác nhận trên map."
+            state = ("Chưa có vùng được xác nhận; có thể chọn bằng chat hoặc vẽ/chọn và Xác nhận trên map."
                      if area is None else
                      "Vùng đã xác nhận: " + (AREA_NAMES[area["key"]] if area["type"] == "preset"
-                                              else "polygon tùy ý trên map"))
+                                              else "vùng trên map"))
     except ValueError:
         state = "Ngữ cảnh vùng không hợp lệ; không được dùng kết quả cũ."
     return (
@@ -64,6 +64,9 @@ def chat_area_note(config):
         "vessel_monitoring_report hoặc investigate_carrier_labels) với use_chat_area=true, "
         "bỏ area_name và area_id. Không lấy mã vùng cũ từ lịch sử. "
         "Chỉ xử lý một vùng mỗi truy vấn; nếu yêu cầu nhiều vùng hãy yêu cầu chọn một. "
+        "Khi người dùng yêu cầu chọn/đổi vùng của chat, gọi query_ships_in_area với "
+        "set_as_chat_area=true, tên vùng hoặc tâm/khoảng cách được chỉ định, use_chat_area=false. "
+        "Chờ lưu thành công rồi mới dùng vùng này trong tool tiếp theo. "
         "Nếu hỏi rõ một khu vực khác, dùng area_name theo quy tắc vùng định nghĩa sẵn/tự vẽ. "
         "Không tạo map mới cho câu hỏi tiếp nối: người dùng đã có map trong Artifacts."
     )

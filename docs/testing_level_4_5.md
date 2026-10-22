@@ -15,8 +15,11 @@ cd /home/mid/workspaces/aircraft_carrier_agents
 git pull
 ```
 
-Nếu vừa pull bản refactor, restart ba dịch vụ. Mỗi lệnh chạy ở một terminal riêng;
+Sau khi pull thay đổi chọn vùng bằng chat, restart ba dịch vụ. Mỗi lệnh chạy ở một terminal riêng;
 dừng process cũ tương ứng trước khi chạy lại để tránh trùng port:
+
+Nếu map đang mở từ bản code cũ, mở lại map một lần sau khi restart để nạp cơ chế
+đồng bộ vùng mới; các lượt chat sau không cần tải lại map.
 
 ```bash
 python3 scripts/run_vessel_map_demo.py --port 8000
@@ -49,6 +52,32 @@ curl -fsS http://127.0.0.1:8001/carrier-references
 Nếu thiếu bộ mẫu, xem [hướng dẫn chuẩn bị](missed_carrier_review.md).
 Lỗi 503 ở `/carrier-references` cần xử lý trước khi test đọc ảnh.
 
+### Bắt đầu cuộc chat: mở map và chọn hình vuông quanh Du Lâm
+
+Thực hiện lần lượt trong **cùng một cuộc chat** trước khi chạy prompt kiểm tra dữ liệu:
+
+1. Chọn Pipe LangGraph hiện tại và gửi **`mở bản đồ`**. Giữ map mở trong panel.
+2. Quay lại chat và gửi:
+
+   > Chọn vùng hình vuông quanh căn cứ Du Lâm, mở rộng 20 hải lý về mỗi hướng,
+   > làm vùng đang chọn của cuộc chat để phân tích tiếp.
+
+3. Đợi agent báo đã lưu vùng. Map đang mở tự hiện hình vuông trong khoảng 2 giây,
+   không cần vẽ tay hoặc bấm **Xác nhận vùng**. Cạnh hình vuông khoảng 40 hải lý
+   (74,08 km), tính cả các góc; đây chưa phải vùng tròn bán kính 20 hải lý.
+4. Tiếp tục tới **Kiểm tra dữ liệu trước khi gọi vision** bên dưới và gửi prompt
+   bắt đầu bằng **“Trong vùng đã vẽ…”**, rồi lấy một `observation_id` thật để chạy T13.
+
+Tool mong đợi ở bước 2: `query_ships_in_area` với `area_name="Du Lâm"`,
+`radius_nm=20`, `set_as_chat_area=true`, `use_chat_area=false`. Chọn vùng không
+bắt buộc khoảng ngày. Kết quả phải có `chat_area_selected=true` và
+`chat_area_revision`; nếu lưu lỗi thì chưa coi vùng đã được chọn thành công.
+
+`MAP_API_URL` trong `ship_agent/config.py` là API map nhìn từ LangGraph, mặc định
+`http://127.0.0.1:8000` khi cùng chạy trên MID. Giữ Pipe/Valves hiện tại; không cần
+copy lại Function. Nếu đang vẽ dở một vùng khác, map giữ bản vẽ và báo vùng đã đổi;
+bấm **Tải vùng đã lưu** để nhận hình vuông vừa chọn từ chat.
+
 ## 2. Quy ước và cách ghi nhận
 
 **Khoảng ngày mặc định:** 01/01/2025–31/12/2025. Dùng ngày cụ thể trước,
@@ -56,15 +85,18 @@ tránh “30 ngày qua” vô tình rơi vào thời gian không có dữ liệu
 tra yêu cầu khoảng 1–366 ngày, gồm cả hai đầu mốc. Câu 13 có thể đọc trực tiếp
 một observation đã xác định, không cần khoảng ngày riêng.
 
-**Vùng X:** gửi `mở bản đồ`, chọn/vẽ một vùng có dữ liệu rồi bấm **Xác nhận vùng**,
-đợi thông báo đã lưu. Mọi câu “trong vùng vừa vẽ” phải chạy trong cùng chat và
-dùng `use_chat_area=true`. Có thể dùng Biển Đông/Vịnh Bắc Bộ để lấy polygon
-định nghĩa sẵn. Có thể chọn Thanh Đảo/Du Lâm/Long Pha, nhập khoảng cách hải lý,
-xem trước ô vuông rồi xác nhận; các khu vực khác chưa có tâm phải tự vẽ.
+**Vùng X:** mặc định là hình vuông quanh Du Lâm đã chọn bằng chat ở bước chuẩn bị.
+Mọi câu “trong vùng đã vẽ/vừa vẽ/vùng này” phải chạy trong cùng chat và dùng
+`use_chat_area=true`; riêng `query_ships_in_area` giữ `set_as_chat_area=false`.
+Có thể đổi vùng bằng chat hoặc
+chọn/vẽ trên map rồi bấm **Xác nhận vùng**. Biển Đông/Vịnh Bắc Bộ có ranh giới
+lưu sẵn; Thanh Đảo/Du Lâm/Long Pha có tâm để tạo hình vuông theo khoảng cách
+hải lý. Các khu vực khác chưa có tâm phải tự vẽ.
 
 Để test luồng gọi tên trực tiếp, thay “trong vùng vừa vẽ” bằng “trong ô vuông
 quanh căn cứ Du Lâm, mở rộng 20 hải lý về mỗi hướng”. Tool phải nhận
-`area_name="Du Lâm"`, `radius_nm=20`, không dùng `use_chat_area=true` cùng lúc.
+`area_name="Du Lâm"`, `radius_nm=20`, `set_as_chat_area=false`, không dùng
+`use_chat_area=true` cùng lúc.
 Vùng này có cạnh khoảng 40 hải lý, gồm cả các góc; chưa phải lọc hình tròn bán
 kính 20 hải lý. Truy vấn trực tiếp không ghi đè polygon đã xác nhận của chat.
 
@@ -88,13 +120,15 @@ serialization ở mục 6, không dựa vào câu “tôi đã xem ảnh” củ
 
 ### Kiểm tra dữ liệu trước khi gọi vision
 
-Trong chat gửi:
+Sau khi đã chọn và lưu hình vuông quanh Du Lâm ở phần chuẩn bị, trong cùng chat gửi:
 
-> Trong vùng vừa vẽ, từ 01/01/2025 đến 31/12/2025, có bao nhiêu lượt được phân
+> Trong vùng đã vẽ, từ 01/01/2025 đến 31/12/2025, có bao nhiêu lượt được phân
 > loại là tàu sân bay? Liệt kê 5 lượt đầu kèm observation_id, thời gian, kích
 > thước, score và ảnh.
 
-Tool mong đợi: `query_ships_in_area`, đúng ngày/vùng và nhãn `aircraft_carrier`.
+Tool mong đợi: `query_ships_in_area`, `use_chat_area=true`, `set_as_chat_area=false`,
+đúng ngày/vùng và nhãn `aircraft_carrier`. Không truyền lại tên căn cứ hoặc khoảng
+cách ở lượt này; tool lấy hình vuông đã lưu theo chat.
 Ghi lại tổng cùng một `observation_id` thật để dùng ở T13. Nếu vùng không có
 dữ liệu, đổi vùng và xác nhận lại hoặc thử câu tương tự **“trên toàn bộ dữ liệu,
 không lọc khu vực”**. Không lấy ID giả như `SHIP_001` để test dữ liệu thật.
@@ -328,6 +362,9 @@ trong chat, không tạo HTML”; tool phải dùng `output_format="json"`.
 | Chưa chọn vùng | Chat mới chưa xác nhận vùng, hỏi review trong “vùng vừa vẽ”. | Yêu cầu xác nhận vùng; không tự chuyển toàn nguồn hoặc dùng vùng chat cũ. |
 | Chưa có ngày | Chat mới hỏi “tìm tàu sân bay bị bỏ sót trong vùng này”, chưa cung cấp ngày. | Hỏi khoảng ngày cho luồng điều tra, không tự chọn năm 2025. |
 | Đổi vùng | Xác nhận vùng A → truy vấn → xác nhận vùng B → hỏi lại cùng ngày. | Dùng revision/phạm vi B. Tổng có thể trùng ngẫu nhiên; kiểm tra scope/ID thay vì chỉ so tổng. |
+| Đổi vùng bằng chat | Sau khi chọn Du Lâm, yêu cầu chọn hình vuông quanh Long Pha 20 hải lý rồi hỏi lại “trong vùng này”. | Tool bật `set_as_chat_area=true`; map tự hiện vùng mới; câu sau dùng revision mới. |
+| Chỉ truy vấn nơi khác | Khi Du Lâm đang được chọn, hỏi số lượt quanh Thanh Đảo 20 hải lý năm 2025, không yêu cầu đổi vùng. | `set_as_chat_area=false`; kết quả là Thanh Đảo nhưng vùng đã lưu/map vẫn là Du Lâm. |
+| Chat đổi vùng khi đang vẽ | Vẽ dở B trên map, rồi yêu cầu agent chọn Du Lâm. | Map giữ bản vẽ B và báo có vùng mới; **Tải vùng đã lưu** nhận Du Lâm. Xác nhận bản vẽ cũ trước khi tải lại phải báo xung đột. |
 | Bản vẽ chưa xác nhận | Có vùng A đã lưu, vẽ B nhưng chưa bấm xác nhận. | Vùng đang hiệu lực vẫn là A; không coi bản nháp là vùng đã lưu. |
 | Xóa vùng | Xóa vùng đã lưu rồi hỏi “trong vùng này”. | Báo cần chọn lại vùng; không âm thầm dùng A. |
 | Phân trang | Sau T14/T16/T17/T19, hỏi tiếp cùng ngày/vùng với next_offset được trả. | Đúng offset/limit; báo số trang đã xử lý và lỗi, không gọi một trang là toàn bộ. |
