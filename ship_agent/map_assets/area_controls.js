@@ -4,10 +4,15 @@ const AreaControls = (() => {
     if (!config) return;
     const el = (id) => document.getElementById(id);
     const choice = el("area-choice"), status = el("area-status"), answer = el("area-answer");
+    const centers = { thanh_dao: "Thanh Đảo", du_lam: "Du Lâm", long_pha: "Long Pha" };
+    const radius = el("area-radius");
     const buttons = ["area-rectangle", "area-polygon", "area-finish", "area-clear", "area-confirm"];
     let mode = null, points = [], geometry = config.polygon || null, layer = null;
     let busy = false, boundaryVersion = 0;
-    choice.value = config.named_area || "custom";
+    choice.value = config.center_key || config.named_area || "custom";
+    radius.value = config.query?.radius_nm ?? "";
+    function updateRadius() { el("area-radius-fields").hidden = !centers[choice.value]; }
+    updateRadius();
     el("area-controls").open = Boolean(config.selection_id);
 
     function clearLayer() { if (layer) map.removeLayer(layer); layer = null; }
@@ -25,6 +30,7 @@ const AreaControls = (() => {
     function setBusy(value) {
       busy = value;
       choice.disabled = value;
+      radius.disabled = value;
       for (const id of buttons) el(id).disabled = value;
     }
     async function request(url, body, timeout = 30000) {
@@ -46,6 +52,7 @@ const AreaControls = (() => {
       if (busy) return;
       boundaryVersion++;
       choice.value = "custom";
+      updateRadius();
       mode = kind; points = []; geometry = null;
       clearAnswer(); paint();
       status.textContent = kind === "rectangle" ? "Chọn hai góc đối diện trên bản đồ." :
@@ -71,18 +78,23 @@ const AreaControls = (() => {
     async function showNamed() {
       const version = ++boundaryVersion;
       mode = null; points = []; geometry = null; clearLayer(); clearAnswer();
+      updateRadius();
       if (choice.value === "custom") {
         status.textContent = "Chọn Vẽ rectangle hoặc Vẽ polygon để xác định vùng tùy ý.";
         return;
       }
       status.textContent = "Đang tải ranh giới khu vực…";
+      const isCenter = Boolean(centers[choice.value]);
+      if (isCenter && !(Number(radius.value) > 0 && Number.isFinite(Number(radius.value)))) {
+        status.textContent = "Nhập khoảng cách mở rộng mỗi hướng, đơn vị hải lý."; return;
+      }
       try {
-        const feature = await request(`/query-areas/${choice.value}`);
+        const feature = await request(`/query-areas/${choice.value}` + (isCenter ? `?radius_nm=${encodeURIComponent(radius.value)}` : ""));
         if (version !== boundaryVersion) return;
         geometry = feature.geometry; paint();
         const bounds = layer.getBounds();
         if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
-        if (!busy) status.textContent = `${feature.properties.name}: dùng polygon đã lưu.`;
+        if (!busy) status.textContent = isCenter ? `${feature.properties.name}: ±${radius.value} hải lý, cạnh khoảng ${2 * Number(radius.value)} hải lý. Bấm xác nhận để truy vấn.` : `${feature.properties.name}: dùng polygon đã lưu.`;
       } catch (error) { if (version === boundaryVersion) status.textContent = error.message; }
     }
     let confirmedId = null;
@@ -103,13 +115,19 @@ const AreaControls = (() => {
       if (mode || (choice.value === "custom" && !geometry)) {
         status.textContent = "Hãy vẽ xong vùng trước khi xác nhận."; return;
       }
+      if (centers[choice.value] && (!geometry || !(Number(radius.value) > 0))) {
+        status.textContent = "Nhập khoảng cách hải lý và chờ vùng xem trước."; return;
+      }
       setBusy(true); clearAnswer();
       status.textContent = "Đang truy vấn dữ liệu trong vùng…";
       try {
-        const query = { ...config.query, area_name: null, area_id: null };
+        const query = { ...config.query, area_name: null, area_id: null,
+          center_latitude: null, center_longitude: null, radius_nm: null };
         const name = { bien_dong: "Biển Đông", vinh_bac_bo: "Vịnh Bắc Bộ" }[choice.value];
         let result;
-        if (name) result = await request(config.prepare_url, { ...query, area_name: name });
+        if (centers[choice.value]) result = await request(config.prepare_url,
+          { ...query, area_name: centers[choice.value], radius_nm: Number(radius.value) });
+        else if (name) result = await request(config.prepare_url, { ...query, area_name: name });
         else if (config.confirm_url) result = await request(config.confirm_url, { polygon: geometry });
         else result = await request(config.prepare_url, { ...query, polygon: geometry });
         confirmedId = result.area_id;
@@ -129,12 +147,14 @@ const AreaControls = (() => {
     el("area-clear").addEventListener("click", () => {
       boundaryVersion++; mode = null; points = []; geometry = null;
       choice.value = "custom"; clearLayer(); clearAnswer();
+      updateRadius();
       status.textContent = "Vùng đã xóa. Chọn cách vẽ để bắt đầu lại.";
     });
     el("area-confirm").addEventListener("click", confirm);
     el("area-retry").addEventListener("click", () => { if (!busy && confirmedId) return askAgent(); });
     choice.addEventListener("change", showNamed);
-    if (config.named_area) showNamed();
+    radius.addEventListener("change", showNamed);
+    if (config.named_area || config.center_key) showNamed();
     else if (geometry) {
       paint();
       const bounds = layer.getBounds();

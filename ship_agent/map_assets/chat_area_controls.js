@@ -13,7 +13,11 @@ const ChatAreaControls = (() => {
         <select data-area="choice" style="width:100%;margin:8px 0">
           <option value="custom">Vùng tùy ý — tự vẽ</option>
           <option value="bien_dong">Biển Đông</option><option value="vinh_bac_bo">Vịnh Bắc Bộ</option>
-        </select><div style="display:flex;flex-wrap:wrap;gap:5px">
+          <option value="thanh_dao">Quanh Thanh Đảo (Yuchi)</option><option value="du_lam">Quanh Du Lâm</option>
+          <option value="long_pha">Quanh Long Pha (Du Lâm Đông)</option>
+        </select><div data-area="radius-fields" hidden><label>Mở rộng mỗi hướng (hải lý)
+          <input data-area="radius" type="number" min="0.001" step="any" placeholder="Ví dụ: 20" style="width:100%;box-sizing:border-box"></label>
+          <p>20 hải lý mỗi hướng → ô vuông cạnh khoảng 40 hải lý.</p></div><div style="display:flex;flex-wrap:wrap;gap:5px">
           <button data-area="rectangle">Vẽ rectangle</button><button data-area="polygon">Vẽ polygon</button>
           <button data-area="finish">Hoàn tất polygon</button><button data-area="confirm">Xác nhận vùng</button>
           <button data-area="clear">Xóa vùng đã lưu</button><button data-area="reload">Tải vùng đã lưu</button>
@@ -24,12 +28,15 @@ const ChatAreaControls = (() => {
     };
     control.addTo(map);
     const el = (name) => root.querySelector(`[data-area="${name}"]`);
+    const centers = new Set(["thanh_dao", "du_lam", "long_pha"]);
+    function updateRadius() { el("radius-fields").hidden = !centers.has(el("choice").value); }
+    updateRadius();
     let revision = 0, initialized = false, busy = false, version = 0;
     let mode = null, points = [], geometry = null, layer = null;
     function status(text) { el("status").textContent = text; }
     function setBusy(value) {
       busy = value;
-      for (const element of root.querySelectorAll("button,select")) element.disabled = value;
+      for (const element of root.querySelectorAll("button,select,input")) element.disabled = value;
     }
     function paint() {
       if (layer) map.removeLayer(layer);
@@ -50,7 +57,11 @@ const ChatAreaControls = (() => {
       } finally { clearTimeout(timer); }
     }
     async function loadPreset(key, marker) {
-      const feature = await request(`/query-areas/${key}`);
+      const isCenter = centers.has(key), radius = Number(el("radius").value);
+      if (isCenter && !(radius > 0 && Number.isFinite(radius))) {
+        throw new Error("Nhập khoảng cách mở rộng mỗi hướng, đơn vị hải lý.");
+      }
+      const feature = await request(`/query-areas/${key}` + (isCenter ? `?radius_nm=${encodeURIComponent(radius)}` : ""));
       if (marker !== version) return;
       geometry = feature.geometry; paint(); fit();
     }
@@ -63,6 +74,7 @@ const ChatAreaControls = (() => {
         revision = saved.revision; initialized = true;
         mode = null; points = []; geometry = null;
         el("choice").value = saved.active_area?.type === "preset" ? saved.active_area.key : "custom";
+        updateRadius();
         if (saved.active_area?.type === "preset") await loadPreset(saved.active_area.key, marker);
         else { geometry = saved.active_area; paint(); if (geometry) fit(); }
         status(saved.active_area ? "Vùng đã lưu. Quay lại chat để hỏi về vùng này." : "Chọn hoặc vẽ một vùng rồi bấm Xác nhận.");
@@ -73,6 +85,7 @@ const ChatAreaControls = (() => {
       if (busy || !initialized) return;
       version++; mode = kind; points = []; geometry = null;
       el("choice").value = "custom"; paint();
+      updateRadius();
       status(kind === "rectangle" ? "Bấm hai góc đối diện. Vùng cũ còn hiệu lực đến khi xác nhận." :
         "Bấm các đỉnh, rồi Hoàn tất polygon. Vùng cũ còn hiệu lực đến khi xác nhận.");
     }
@@ -97,7 +110,7 @@ const ChatAreaControls = (() => {
       if (!clear && (mode || !geometry)) { status("Hãy vẽ/chọn xong một vùng trước khi xác nhận."); return; }
       setBusy(true);
       try {
-        const active = clear ? null : el("choice").value === "custom" ? geometry
+        const active = clear ? null : el("choice").value === "custom" || centers.has(el("choice").value) ? geometry
           : { type: "preset", key: el("choice").value };
         const saved = await request(`/map-sessions/${session}/area`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
@@ -105,6 +118,7 @@ const ChatAreaControls = (() => {
         });
         revision = saved.revision;
         if (clear) { version++; mode = null; points = []; geometry = null; el("choice").value = "custom"; paint(); }
+        updateRadius();
         status(clear ? "Đã xóa vùng của cuộc chat." : "Đã lưu vùng. Quay lại chat và hỏi về vùng vừa chọn.");
       } catch (error) { status(`Chưa cập nhật vùng: ${error.message}`); }
       finally { setBusy(false); }
@@ -115,15 +129,18 @@ const ChatAreaControls = (() => {
     el("confirm").addEventListener("click", () => save());
     el("clear").addEventListener("click", () => save(true));
     el("reload").addEventListener("click", reload);
-    el("choice").addEventListener("change", async () => {
+    async function selectArea() {
       const marker = ++version;
       mode = null; points = []; geometry = null; paint();
+      updateRadius();
       if (el("choice").value === "custom") { status("Chọn cách vẽ vùng tùy ý."); return; }
       setBusy(true);
       try { await loadPreset(el("choice").value, marker); status("Bấm Xác nhận để dùng vùng này cho cuộc chat."); }
       catch (error) { status(error.message); }
       finally { setBusy(false); }
-    });
+    }
+    el("choice").addEventListener("change", selectArea);
+    el("radius").addEventListener("change", selectArea);
     return reload();
   }
   return { attach };

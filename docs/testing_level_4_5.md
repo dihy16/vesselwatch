@@ -59,7 +59,14 @@ một observation đã xác định, không cần khoảng ngày riêng.
 **Vùng X:** gửi `mở bản đồ`, chọn/vẽ một vùng có dữ liệu rồi bấm **Xác nhận vùng**,
 đợi thông báo đã lưu. Mọi câu “trong vùng vừa vẽ” phải chạy trong cùng chat và
 dùng `use_chat_area=true`. Có thể dùng Biển Đông/Vịnh Bắc Bộ để lấy polygon
-định nghĩa sẵn; các khu vực khác phải tự vẽ.
+định nghĩa sẵn. Có thể chọn Thanh Đảo/Du Lâm/Long Pha, nhập khoảng cách hải lý,
+xem trước ô vuông rồi xác nhận; các khu vực khác chưa có tâm phải tự vẽ.
+
+Để test luồng gọi tên trực tiếp, thay “trong vùng vừa vẽ” bằng “trong ô vuông
+quanh căn cứ Du Lâm, mở rộng 20 hải lý về mỗi hướng”. Tool phải nhận
+`area_name="Du Lâm"`, `radius_nm=20`, không dùng `use_chat_area=true` cùng lúc.
+Vùng này có cạnh khoảng 40 hải lý, gồm cả các góc; chưa phải lọc hình tròn bán
+kính 20 hải lý. Truy vấn trực tiếp không ghi đè polygon đã xác nhận của chat.
 
 **Cách đối chiếu:** mở chi tiết tool call/result nếu Open WebUI có hiển thị;
 nếu không, xem trace của run LangGraph. Đối chiếu JSON với câu trả lời cuối,

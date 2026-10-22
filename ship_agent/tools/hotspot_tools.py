@@ -41,6 +41,7 @@ def create_carrier_hotspot_tools():
     @tool(args_schema=FalseCarrierToolInput)
     def find_carrier_hotspots(
         observed_from: str, observed_to: str, area_name: str | None = None, area_id: str | None = None,
+        center_latitude: float | None = None, center_longitude: float | None = None, radius_nm: float | None = None,
         use_chat_area: bool = False, limit: int = 20, offset: int = 0, config: RunnableConfig = None,
     ) -> dict:
         """Câu 18: tìm cụm nhiều lượt nghi tàu sân bay và phân tích phân bố.
@@ -56,6 +57,7 @@ def create_carrier_hotspot_tools():
         """
         try:
             scope = FalseCarrierScope(observed_from=observed_from, observed_to=observed_to,
+                                      center_latitude=center_latitude, center_longitude=center_longitude, radius_nm=radius_nm,
                                       area_name=area_name, area_id=area_id, limit=limit, offset=offset)
             context, payload = _scope_payload(scope, config, use_chat_area, FalseCarrierRequest)
             result = request_carrier_hotspots(payload)
@@ -71,6 +73,7 @@ def create_carrier_hotspot_tools():
     def investigate_carrier_hotspot(
         observed_from: str, observed_to: str, report_id: str, cluster_id: str,
         area_name: str | None = None, area_id: str | None = None, use_chat_area: bool = False,
+        center_latitude: float | None = None, center_longitude: float | None = None, radius_nm: float | None = None,
         limit: int = 20, offset: int = 0, config: RunnableConfig = None,
     ) -> dict:
         """Câu 18: kiểm tra chi tiết đúng các observations thuộc cụm đã tìm.
@@ -86,6 +89,7 @@ def create_carrier_hotspot_tools():
         try:
             scope = HotspotClusterScope(observed_from=observed_from, observed_to=observed_to,
                 report_id=report_id, cluster_id=cluster_id, area_name=area_name, area_id=area_id,
+                center_latitude=center_latitude, center_longitude=center_longitude, radius_nm=radius_nm,
                 limit=limit, offset=offset)
             context, payload = _scope_payload(scope, config, use_chat_area, HotspotClusterRequest)
             candidates = request_carrier_hotspot_candidates(payload)

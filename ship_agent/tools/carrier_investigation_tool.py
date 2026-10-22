@@ -17,6 +17,7 @@ def create_carrier_investigation_tool():
     @tool(args_schema=FalseCarrierToolInput)
     def investigate_carrier_detections(
         observed_from: str, observed_to: str, area_name: str | None = None, area_id: str | None = None,
+        center_latitude: float | None = None, center_longitude: float | None = None, radius_nm: float | None = None,
         use_chat_area: bool = False, limit: int = 20, offset: int = 0,
         config: RunnableConfig = None,
     ) -> dict:
@@ -34,6 +35,7 @@ def create_carrier_investigation_tool():
         """
         try:
             scope = FalseCarrierScope(observed_from=observed_from, observed_to=observed_to,
+                                      center_latitude=center_latitude, center_longitude=center_longitude, radius_nm=radius_nm,
                                       area_name=area_name, area_id=area_id, limit=limit, offset=offset)
             context = chat_area_context(config)
             payload = apply_chat_area(scope.model_dump(), config) if use_chat_area else scope.model_dump()

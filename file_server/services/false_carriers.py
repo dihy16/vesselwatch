@@ -8,6 +8,7 @@ from file_server.services.spatial import query_observations
 def candidate_query(scope: FalseCarrierScope) -> AreaRequest:
     return AreaRequest(observed_from=scope.observed_from, observed_to=scope.observed_to,
                        area_name=scope.area_name, area_id=scope.area_id,
+                       center_latitude=scope.center_latitude, center_longitude=scope.center_longitude, radius_nm=scope.radius_nm,
                        polygon=getattr(scope, "polygon", None), classification="aircraft_carrier",
                        limit=scope.limit, offset=scope.offset)
 

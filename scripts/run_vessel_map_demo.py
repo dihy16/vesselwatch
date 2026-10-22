@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 
 from file_server.storage.chat_areas import AreaConflict
 from file_server.storage.chat_areas import ChatAreaStore
-from file_server.services.spatial import AREA_NAMES
+from file_server.services.spatial import AREA_NAMES, AREA_CENTERS, square_polygon
 from file_server.services.spatial import predefined_geometry
 from file_server.data.map_bundle import bundle_modules
 from file_server.data.map_bundle import load_bundle
@@ -73,10 +73,16 @@ def make_session_handler(base_handler, store, dataset_info=None):
                     self._send_json(200, store.set_area(path.split("/")[2], **data))
                 elif self.command == "GET" and path.startswith("/query-areas/"):
                     key = path.rsplit("/", 1)[1]
-                    if key not in AREA_NAMES:
+                    if key in AREA_CENTERS:
+                        center = AREA_CENTERS[key]
+                        radius = float(parse_qs(urlsplit(self.path).query).get("radius_nm", ["0"])[0])
+                        self._send_json(200, {"type": "Feature", "properties": {**center, "radius_nm": radius},
+                                              "geometry": square_polygon(center["latitude"], center["longitude"], radius)})
+                    elif key in AREA_NAMES:
+                        self._send_json(200, {"type": "Feature", "properties": {"name": AREA_NAMES[key]},
+                                              "geometry": predefined_geometry(key).geometry})
+                    else:
                         raise KeyError("Khu vực này cần người dùng tự vẽ.")
-                    self._send_json(200, {"type": "Feature", "properties": {"name": AREA_NAMES[key]},
-                                          "geometry": predefined_geometry(key).geometry})
                 else:
                     self._send_json(404, {"detail": "Không tìm thấy API vùng."})
             except AreaConflict as exc:

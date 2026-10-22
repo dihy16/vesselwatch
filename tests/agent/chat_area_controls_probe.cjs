@@ -73,5 +73,16 @@ async function setup(active = null) {
   assert.ok(app.calls.every((call) => !call.url.endsWith("/answer")), "No separate agent run from map");
   const restored = await setup(square);
   assert.match(restored.el("status").textContent, /chat/);
+  const centered = await setup();
+  centered.el("choice").value = "du_lam";
+  centered.el("radius").value = "";
+  await centered.el("choice").events.change();
+  await centered.click("confirm");
+  assert.equal(centered.saved().active_area, null, "No default radius");
+  centered.el("radius").value = "20";
+  await centered.el("radius").events.change();
+  assert.equal(centered.calls.at(-1).url, "/query-areas/du_lam?radius_nm=20");
+  await centered.click("confirm");
+  assert.deepEqual(centered.saved().active_area, square, "Store computed geometry for chat follow-ups");
   console.log("Chat area drawing/confirm/clear/restore/conflict probe passed");
 })().catch((error) => { console.error(error); process.exit(1); });

@@ -50,3 +50,9 @@ def test_model_note_contains_current_status_but_no_coordinates_or_old_area_id():
     assert "Chưa có vùng" in chat_area_note(config(None))
     assert "lỗi server map" in chat_area_note(config(error="unavailable"))
     assert chat_area_note({}) == ""
+
+
+@pytest.mark.parametrize("query", [{"radius_nm": 20}, {"center_latitude": 18}, {"center_longitude": 109}])
+def test_explicit_center_or_distance_cannot_be_mixed_with_confirmed_chat_area(query):
+    with pytest.raises(ValueError):
+        apply_chat_area(query, config())

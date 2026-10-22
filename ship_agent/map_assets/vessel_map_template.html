@@ -772,7 +772,8 @@
         <details id="area-controls" class="area-controls" aria-label="Truy vấn theo khu vực">
           <summary>Vùng truy vấn</summary>
           <label for="area-choice">Khu vực</label>
-          <select id="area-choice"><option value="custom">Vùng tùy ý</option><option value="bien_dong">Biển Đông</option><option value="vinh_bac_bo">Vịnh Bắc Bộ</option></select>
+          <select id="area-choice"><option value="custom">Vùng tùy ý</option><option value="bien_dong">Biển Đông</option><option value="vinh_bac_bo">Vịnh Bắc Bộ</option><option value="thanh_dao">Quanh căn cứ Thanh Đảo (Yuchi)</option><option value="du_lam">Quanh căn cứ Du Lâm</option><option value="long_pha">Quanh căn cứ Long Pha (Du Lâm Đông)</option></select>
+          <div id="area-radius-fields" hidden><label for="area-radius">Mở rộng mỗi hướng (hải lý)</label><input id="area-radius" type="number" min="0.001" step="any" placeholder="Ví dụ: 20"><p class="queue-status">20 hải lý mỗi hướng tạo ô vuông cạnh khoảng 40 hải lý.</p></div>
           <p class="queue-status">Vẽ vùng trên bản đồ để truy vấn trong khoảng thời gian và bộ lọc của bản đồ này.</p>
           <div class="action-row"><button id="area-rectangle" type="button">Vẽ rectangle</button><button id="area-polygon" type="button">Vẽ polygon</button></div>
           <div class="action-row"><button id="area-finish" type="button">Hoàn tất polygon</button><button id="area-clear" type="button">Xóa vùng</button></div>
