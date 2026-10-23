@@ -5,7 +5,7 @@ from typing import Literal
 import httpx
 from langchain_core.tools import ToolException, tool
 
-from file_server.media.image_assets import prepare_original_image, prepare_vision_image
+from file_server.media.image_assets import prepare_original_image, prepare_test_image, prepare_vision_image
 from ship_agent import config
 from ship_agent.clients.carrier_reference_client import load_carrier_references
 from ship_agent.runtime.visual_context import attach_visual_input
@@ -76,14 +76,16 @@ def create_image_review_tool(observations, *, data_source):
 def create_image_view_tool(observations, *, data_source):
     @tool
     def view_ship_image(observation_id: str, image_size: Literal["original", "resized"] = "resized",
-                        use_carrier_references: bool = False) -> dict:
+                        use_carrier_references: bool = False, resize_test: Literal["A", "D"] | None = None) -> dict:
         """Mở pixel ảnh cho chính LLM chat nhận xét tự do, không gọi vision reviewer/JSON.
 
         Dùng khi người dùng muốn trực tiếp xem/nhận xét ảnh hoặc thử ảnh gốc và resize.
         observation_id phải có trong dataset. image_size=original giữ kích thước pixel gốc;
         resized phóng cạnh dài ảnh nhỏ lên 224 px theo bilinear, giữ ảnh lớn hơn nguyên size.
-        use_carrier_references=true gửi kèm TOÀN BỘ mẫu, cùng quy tắc resize mẫu 224 px
-        ở cả hai chế độ TARGET. Không phân loại/flag hoặc sửa prediction đã lưu.
+        use_carrier_references=true gửi kèm TOÀN BỘ mẫu dương/âm với nhãn từng ảnh.
+        Thử A/D: resize_test=A giữ nguyên kích thước cả TARGET và mẫu; D resize cạnh dài
+        CẢ TARGET và mẫu về 448 px, giữ tỷ lệ, bilinear. resize_test ghi đè image_size.
+        Khi bỏ resize_test, mẫu dùng quy tắc 224 px thông thường. Không sửa prediction/flags.
         """
         observation = next((row for row in observations if row["observation_id"] == observation_id), None)
         if observation is None or not observation.get("images"):
@@ -96,7 +98,11 @@ def create_image_view_tool(observations, *, data_source):
                 raise ToolException("Chưa tải đủ bộ mẫu; kiểm tra file server và CARRIER_REFERENCE_DIR.") from exc
         try:
             data = image_review._image_bytes(observation, data_source, None)
-            prepared = prepare_original_image(data) if image_size == "original" else prepare_vision_image(data)
+            if resize_test is not None:
+                image_size = "original" if resize_test == "A" else "resized"
+                prepared = prepare_test_image(data, resize_test)
+            else:
+                prepared = prepare_original_image(data) if image_size == "original" else prepare_vision_image(data)
         except (httpx.HTTPError, OSError, ValueError) as exc:
             raise ToolException("Không tải/đọc được ảnh đăng ký; kiểm tra file server và định dạng ảnh.") from exc
         result = {"status": "ready", "observation_id": observation_id,
@@ -104,10 +110,18 @@ def create_image_view_tool(observations, *, data_source):
                   **prepared.metadata(), "review_source": "chat_model_direct_pixels",
                   "reference_count": len(library.images) if library is not None else 0,
                   "is_ground_truth": False}
+        if resize_test is not None:
+            result["resize_test"] = resize_test
         if library is not None:
+            records = library.display_images(config.FILE_SERVER_URL)
+            for record, image in zip(records, library.images):
+                variant = prepare_test_image(image.data, resize_test) if resize_test is not None else prepare_vision_image(image.data)
+                record.update(variant.metadata())
             result.update(reference_revision=library.revision, reference_description=library.description,
-                          reference_images=library.display_images(config.FILE_SERVER_URL))
-        return attach_visual_input(result, [observation], library, image_size=image_size)
+                          reference_images=records,
+                          reference_label_counts={label: sum(image.label == label for image in library.images)
+                                                  for label in ("aircraft_carrier", "not_aircraft_carrier")})
+        return attach_visual_input(result, [observation], library, image_size=image_size, resize_test=resize_test)
 
     return view_ship_image
 
@@ -115,7 +129,7 @@ def create_image_view_tool(observations, *, data_source):
 def create_reference_view_tool():
     @tool
     def view_carrier_references() -> dict:
-        """Mở toàn bộ ảnh mẫu tàu sân bay để LLM chat xem pixel và mô tả trực tiếp.
+        """Mở toàn bộ ảnh mẫu dương/âm để LLM chat xem pixel và mô tả trực tiếp.
 
         Dùng khi hỏi xem/mô tả/so sánh lại bộ mẫu, ref1, ref2 hoặc ảnh tham chiếu.
         Không cần observation_id; không phân loại tàu hoặc tạo flag. Trả danh sách

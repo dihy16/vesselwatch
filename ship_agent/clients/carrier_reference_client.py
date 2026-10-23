@@ -7,6 +7,7 @@ import httpx
 
 from file_server.media.carrier_references import (
     MAX_DESCRIPTION_BYTES,
+    REFERENCE_LABELS,
     ReferenceImage,
     ReferenceLibrary,
     library_revision,
@@ -35,8 +36,10 @@ def load_carrier_references(*, transport=None) -> ReferenceLibrary:
             if not isinstance(record, dict):
                 raise ValueError("Invalid reference image record.")
             identity, name = record.get("reference_id"), record.get("name")
+            label = record.get("label", "aircraft_carrier")
             if (not isinstance(identity, str) or not re.fullmatch(r"[a-f0-9]{32}", identity)
-                    or identity in seen or not isinstance(name, str) or not name):
+                    or identity in seen or not isinstance(name, str) or not name
+                    or not isinstance(label, str) or label not in REFERENCE_LABELS):
                 raise ValueError("Invalid or duplicate reference image identity.")
             seen.add(identity)
             # Never follow arbitrary URLs returned as public viewer metadata.
@@ -63,7 +66,7 @@ def load_carrier_references(*, transport=None) -> ReferenceLibrary:
                     or parse_qs(parts.query).get("revision") != [revision]
                     or any(char.isspace() for char in public_url)):
                 raise ValueError("Invalid reference viewer URL.")
-            images.append(ReferenceImage(identity, name, normalized, width, height, url=public_url))
+            images.append(ReferenceImage(identity, name, normalized, width, height, url=public_url, label=label))
     # No reference is silently dropped, even if any individual download fails.
     if library_revision(description, images) != revision:
         raise ValueError("Reference set changed during download.")

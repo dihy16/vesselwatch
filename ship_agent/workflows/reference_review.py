@@ -16,15 +16,21 @@ def reference_review_content(target: bytes | ImageVariant, library):
                pixel_block(prepared.data), {"type": "text", "text": "MÔ TẢ THAM KHẢO:\n" + library.description}]
     for image in library.images:
         prepared = prepare_vision_image(image.data)
-        content.extend([{"type": "text", "text": f"ẢNH MẪU reference_id={image.reference_id}; tên={image.name}. " + prepared.description()},
+        content.extend([{"type": "text", "text": f"ẢNH MẪU reference_id={image.reference_id}; tên={image.name}; label={image.label}. " + prepared.description()},
                         pixel_block(prepared.data)])
     return content
 
 
 def reference_review_result(observation, review: CarrierReferenceReview, library):
-    known_ids = {image.reference_id for image in library.images}
+    labels = {image.reference_id: image.label for image in library.images}
+    known_ids = set(labels)
     if any(item.reference_id not in known_ids for item in review.reference_evidence):
         raise ValueError("Visual review cited an unknown reference image.")
+    if (review.assessment == "aircraft_carrier" and not any(
+            labels[item.reference_id] == "aircraft_carrier" and any(text.strip() for text in item.similarities)
+            for item in review.reference_evidence)):
+        # Similarity to a negative example must never become a carrier-positive flag.
+        review = review.model_copy(update={"assessment": "unknown"})
     if review.image_quality != "sufficient":
         review = review.model_copy(update={"assessment": "unknown"})
         decision = "insufficient_image"

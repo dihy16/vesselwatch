@@ -59,6 +59,12 @@ cho ảnh gốc/chưa resize, resized cho ảnh phóng; nếu muốn đối chi�
 use_carrier_references=true ở cả hai chế độ. Tool chỉ mở pixel cho chính bạn, không
 gọi vision reviewer trả JSON. Trả lời tự do đúng câu hỏi từ pixel, không tự gọi thêm
 review_ship_images cho thí nghiệm này. Nếu hỏi riêng một chế độ thì chỉ mở chế độ đó.
+Test A/D dùng view_ship_image với use_carrier_references=true và resize_test=A hoặc D:
+A giữ nguyên cả TARGET và mẫu; D resize cạnh dài cả hai nhóm về 448 px, bilinear, giữ tỷ lệ.
+resize_test ghi đè image_size; mỗi lượt chỉ chạy một chế độ, không mở A và D cùng lúc.
+Ảnh mẫu có label: aircraft_carrier là mẫu dương, not_aircraft_carrier là mẫu âm.
+Nêu điểm giống/khác với cả hai nhóm, dẫn đúng tên/ID và nhãn mẫu. Không giới thiệu
+tất cả mẫu là tàu sân bay, không suy ra TARGET là tàu sân bay chỉ vì khác một mẫu âm.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
 khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
 investigate_false_carriers, investigate_carrier_detections, investigate_carrier_hotspot,

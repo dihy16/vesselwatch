@@ -10,7 +10,7 @@ from ship_agent.vision.observation_evidence import build_observation_evidence
 from ship_agent.vision.schemas import CarrierReferenceReview
 from ship_agent.workflows.reference_review import reference_review_result
 from tests.agent.test_reference_review import review
-from tests.file_server.test_carrier_references import reference_folder
+from tests.file_server.test_carrier_references import png, reference_folder
 from tests.integration.test_missed_carrier_client import response_payload
 
 
@@ -119,3 +119,34 @@ def test_empty_reference_comparisons_and_positive_with_only_differences_rejected
     with pytest.raises(ValidationError):
         review(library, reference_evidence=[{"reference_id": library.images[0].reference_id,
                                              "differences": ["Some difference"]}])
+
+
+def test_matching_negative_example_is_counterevidence_and_never_a_carrier_flag(tmp_path):
+    folder = reference_folder(tmp_path)
+    (folder / "labels.json").write_text(json.dumps({"known.png": "not_aircraft_carrier"}))
+    library = load_reference_library(folder)
+    row = response_payload()["ships"][0]
+    matches = [{"reference_id": library.images[0].reference_id,
+                "similarities": ["Visible red elongated hull matches the negative example"]}]
+    negative = evidence(row, library, assessment="not_aircraft_carrier", reference_evidence=matches)
+    assert negative["visual_review"]["assessment"] == "not_aircraft_carrier"
+    image_evidence = [item for item in negative["contradicting_evidence"] if item["source"] == "image"]
+    assert image_evidence[0]["reference_label"] == "not_aircraft_carrier"
+    assert not any(item["source"] == "image" for item in negative["supporting_evidence"])
+    false_positive = reference_review_result(row, review(library, reference_evidence=matches), library)
+    assert not false_positive["flagged"] and false_positive["visual_review"]["assessment"] == "unknown"
+
+
+def test_difference_from_negative_example_is_unresolved_not_carrier_support(tmp_path):
+    folder = reference_folder(tmp_path)
+    (folder / "positive.png").write_bytes(png("green"))
+    (folder / "labels.json").write_text(json.dumps({"known.png": "not_aircraft_carrier", "positive.png": "aircraft_carrier"}))
+    library = load_reference_library(folder)
+    negative_id = next(image.reference_id for image in library.images if image.label == "not_aircraft_carrier")
+    positive_id = next(image.reference_id for image in library.images if image.label == "aircraft_carrier")
+    row = response_payload()["ships"][0]
+    result = evidence(row, library, reference_evidence=[
+        {"reference_id": positive_id, "similarities": ["Visible hull matches positive sample"]},
+        {"reference_id": negative_id, "differences": ["Target differs from negative sample"]}])
+    assert [item["reference_id"] for item in result["supporting_evidence"] if item["source"] == "image"] == [positive_id]
+    assert any(negative_id in item for item in result["unresolved"])

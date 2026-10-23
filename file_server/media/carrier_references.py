@@ -10,6 +10,7 @@ from file_server.media.image_assets import MAX_IMAGE_BYTES, normalize_image, ima
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
 MAX_DESCRIPTION_BYTES = 65536
+REFERENCE_LABELS = {"aircraft_carrier", "not_aircraft_carrier"}
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,11 @@ class ReferenceImage:
     width: int
     height: int
     url: str | None = field(default=None, compare=False, repr=False)
+    label: str = "aircraft_carrier"
+
+    def __post_init__(self):
+        if not isinstance(self.label, str) or self.label not in REFERENCE_LABELS:
+            raise ValueError("Invalid reference label.")
 
 
 def reference_id(name: str, data: bytes) -> str:
@@ -27,9 +33,12 @@ def reference_id(name: str, data: bytes) -> str:
 
 
 def library_revision(description: str, images) -> str:
-    return sha256(json.dumps({"description": description,
-        "images": sorted((image.name, image.reference_id) for image in images)},
-        ensure_ascii=True, sort_keys=True).encode()).hexdigest()
+    payload = {"description": description,
+               "images": sorted((image.name, image.reference_id) for image in images)}
+    # Preserve legacy positive-only revisions, binding mixed-library labels to the snapshot.
+    if any(image.label != "aircraft_carrier" for image in images):
+        payload["labels"] = sorted((image.reference_id, image.label) for image in images)
+    return sha256(json.dumps(payload, ensure_ascii=True, sort_keys=True).encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -42,7 +51,7 @@ class ReferenceLibrary:
         records = []
         for image in self.images:
             record = {"reference_id": image.reference_id, "name": image.name,
-                      "width": image.width, "height": image.height}
+                      "width": image.width, "height": image.height, "label": image.label}
             url = image.url or (base_url.rstrip("/") +
                 f"/carrier-references/images/{image.reference_id}?revision={self.revision}" if base_url else None)
             if url:
@@ -71,6 +80,16 @@ def load_reference_library(directory: Path) -> ReferenceLibrary:
     description = _read_bounded(description_path, MAX_DESCRIPTION_BYTES).decode("utf-8-sig").strip()
     if not description:
         raise ValueError("description.md chưa có mô tả tàu sân bay.")
+    labels_path = root / "labels.json"
+    labels = None
+    if labels_path.is_symlink():
+        raise ValueError("Reference labels must not be a symlink.")
+    if labels_path.exists():
+        labels = json.loads(_read_bounded(labels_path, MAX_DESCRIPTION_BYTES).decode("utf-8-sig"))
+        if (not isinstance(labels, dict) or not labels
+                or any(not isinstance(name, str) or not name or not isinstance(label, str) or label not in REFERENCE_LABELS
+                       for name, label in labels.items())):
+            raise ValueError("labels.json phải ánh xạ tên ảnh sang aircraft_carrier/not_aircraft_carrier.")
     images = []
     for path in sorted(root.rglob("*")):
         # Do not follow reference links into other folders or omit them silently.
@@ -82,8 +101,13 @@ def load_reference_library(directory: Path) -> ReferenceLibrary:
             raise ValueError("Reference image is outside the configured folder.")
         data, width, height = normalize_image(_read_bounded(path, MAX_IMAGE_BYTES))
         name = path.relative_to(root).as_posix()
-        images.append(ReferenceImage(reference_id(name, data), name, data, width, height))
+        if labels is not None and name not in labels:
+            raise ValueError("labels.json thiếu nhãn cho ảnh mẫu: " + name)
+        images.append(ReferenceImage(reference_id(name, data), name, data, width, height,
+                                     label=labels[name] if labels is not None else "aircraft_carrier"))
     if not images:
         raise ValueError("Folder tham chiếu chưa có ảnh mẫu tàu sân bay.")
+    if labels is not None and set(labels) != {image.name for image in images}:
+        raise ValueError("labels.json có tên ảnh không tồn tại trong bộ mẫu.")
     images = tuple(images)
     return ReferenceLibrary(description, images, library_revision(description, images))

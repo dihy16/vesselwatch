@@ -11,9 +11,12 @@ def build_observation_evidence(observation, reviewed, library):
             or reviewed.get("reference_revision") != library.revision):
         raise ValueError("Visual evidence does not belong to this observation/reference set.")
     review = CarrierReferenceReview.model_validate(reviewed["visual_review"])
+    labels = {image.reference_id: image.label for image in library.images}
     unsupported_negative = review.assessment == "not_aircraft_carrier" and (
         not any(text.strip() for text in review.visible_features)
-        or not any(any(text.strip() for text in item.differences) for item in review.reference_evidence))
+        or not any(any(text.strip() for text in (
+            item.similarities if labels.get(item.reference_id) == "not_aircraft_carrier" else item.differences))
+            for item in review.reference_evidence))
     if unsupported_negative:
         review = review.model_copy(update={"assessment": "unknown"})
     canonical = reference_review_result(observation, review, library)
@@ -32,14 +35,21 @@ def build_observation_evidence(observation, reviewed, library):
         unresolved.append("Chưa có nhãn nhận dạng đã lưu cho observation này.")
     if assessment != "unknown":
         for evidence in visual["reference_evidence"]:
+            label = labels[evidence["reference_id"]]
             if any(text.strip() for text in evidence["similarities"]):
-                supporting.append({"source": "image", "evidence_type": "reference_comparison",
+                destination = supporting if label == "aircraft_carrier" else contradicting
+                destination.append({"source": "image", "evidence_type": "reference_comparison",
                                    "reference_id": evidence["reference_id"],
+                                   "reference_label": label,
                                    "visible_features": visual["visible_features"],
                                    "details": evidence["similarities"]})
             if any(text.strip() for text in evidence["differences"]):
+                if label == "not_aircraft_carrier":
+                    unresolved.append("Khác mẫu âm " + evidence["reference_id"] + " không đủ làm bằng chứng tàu sân bay.")
+                    continue
                 contradicting.append({"source": "image", "evidence_type": "reference_comparison",
                                       "reference_id": evidence["reference_id"],
+                                      "reference_label": label,
                                       "visible_features": visual["visible_features"],
                                       "details": evidence["differences"]})
     else:

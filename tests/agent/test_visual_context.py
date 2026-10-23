@@ -96,6 +96,20 @@ def test_parallel_calls_share_one_full_reference_set_and_deduplicate_targets(lib
         latest_visual_input([*history, message("tool", other)])
 
 
+def test_a_d_policy_survives_tool_history_and_conflicting_parallel_calls_are_rejected(library):
+    rows = list(pair_rows())
+    original = attach_visual_input({}, rows[:1], library, resize_test="A")["visual_input"]
+    resized = attach_visual_input({}, rows[:1], library, resize_test="D")["visual_input"]
+    history = [message("human"), message("ai"), message("tool", original, name="view_ship_image")]
+    assert latest_visual_input(history) == original
+    with pytest.raises(ValueError, match="separately"):
+        latest_visual_input([*history, message("tool", resized, name="view_ship_image")])
+    invalid = {**original, "resize_test": "B"}
+    with pytest.raises(ValueError):
+        build_visual_content(invalid, rows, load_references=lambda: library,
+                             load_image=lambda row: pytest.fail("Invalid policy must not load pixels"))
+
+
 def test_loading_failure_is_not_a_partial_pixel_message(library):
     rows = list(pair_rows())
     descriptor = attach_visual_input({}, rows, library)["visual_input"]

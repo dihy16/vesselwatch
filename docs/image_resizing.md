@@ -44,34 +44,81 @@ mẫu. Kiểm tra ảnh hiện lớn hơn, bấm mở được bản gốc, URL 
 và kích thước native/sent trong tool result đúng. Đây chưa phải bằng chứng
 resize cải thiện độ chính xác; cần đối chiếu kết quả vision thực tế trên MID.
 
-## Thử trực tiếp agent trong Open WebUI: ảnh gốc và ảnh resize
+## Test A/D trực tiếp agent trong Open WebUI
 
 Đây là luồng để so **hai câu trả lời tự do của chính agent đang chat**, không phải
-chạy vision reviewer riêng. Sau `git pull`, restart LangGraph port 2024 để nạp tool
-`view_ship_image`; giữ file server đang chạy. Không cần sửa Pipe hay source Open WebUI.
+chạy vision reviewer riêng. Sau `git pull`, restart file server port 8001 và LangGraph
+port 2024 để nạp nhãn bộ mẫu và tool `view_ship_image`. Không cần sửa Pipe hay source Open WebUI.
 Model nhận pixel là `OPENAI_MODEL` của agent, không phải model `OPENAI_VISION_MODEL`
 của reviewer (hai cấu hình có thể trỏ cùng model hoặc khác nhau).
+
+Chuẩn bị sáu ảnh đã chọn trong `data/carrier_references/`: `ref1.png`, `ref2.png`
+là mẫu dương, `image.png` và ba ảnh `S2B_...png` là mẫu âm theo nhãn người dùng.
+Trên máy local đã tạo `data/carrier_references/labels.json`. Data không được đưa
+lên Git: cần chép bộ ảnh cùng `description.md` và `labels.json` sang thư mục tương
+ứng trên MID. Nếu sáu ảnh đã có trên MID và đúng tên, chỉ cần tạo file nhãn bằng:
+
+```bash
+cp docs/examples/carrier_reference_labels.json data/carrier_references/labels.json
+```
+
+Cũng đã đóng gói bộ mẫu local thành `data/exports/carrier-references-ad.zip`
+(file data bị ignore, không có trong `git pull`). Upload ZIP này vào `data/` trên
+MID rồi giải nén từ repository root:
+
+```bash
+python -m zipfile -e data/carrier-references-ad.zip data
+```
+
+ZIP có thư mục `carrier_references/` với sáu ảnh, `description.md` và `labels.json`.
+Sau khi giải nén, đường dẫn vẫn là `data/carrier_references/`; không đổi cấu hình.
+
+`labels.json` ánh xạ tên tương đối của **từng ảnh** sang `aircraft_carrier` hoặc
+`not_aircraft_carrier`. Khi có file nhãn, mọi ảnh phải được khai báo, không có tên
+thừa; thiếu nhãn sẽ báo lỗi thay vì tự đoán. Khi chưa có `labels.json`, hệ thống
+giữ chế độ cũ: toàn bộ mẫu là tàu sân bay. Vì vậy bộ có mẫu âm phải có file nhãn.
+Tên có/không có chữ `ref` chỉ dùng để lập bộ nhãn ban đầu theo bạn chỉ định;
+code không dùng tên file để suy đoán nhãn. Nhãn đi từ API tới tool và cạnh từng
+ảnh gửi model. Đổi nhãn làm đổi `reference_revision`, giữ nguyên ID/pixel ảnh.
+
+Hai chế độ được chọn bằng **một tham số** `resize_test`, ghi đè `image_size`:
+
+| Test | Query | Mẫu dương 200×150 | Mẫu âm 400×300 |
+| --- | --- | --- | --- |
+| A | Gốc 48×26 | Gốc 200×150 | Gốc 400×300 |
+| D | 448×243 | 448×336 | 448×336 |
+
+D đưa cạnh dài cả query và tất cả mẫu về **448 px**, giữ tỷ lệ, bilinear. Với ảnh
+lớn hơn 448 px thì D thu nhỏ về cùng cạnh dài; A luôn giữ kích thước gốc. Không
+crop, xoay, tăng nét hay chỉnh màu trong thí nghiệm. File gốc không bị sửa.
 
 Mở **hai chat mới**, chọn cùng agent và dùng cùng observation_id/bộ mẫu. Không gửi
 hai prompt liên tiếp trong cùng chat nếu muốn tránh ảnh hưởng của câu trả lời đầu.
 
-Trong chat thứ nhất:
+Trong chat thứ nhất — A:
 
 > Dùng view_ship_image với observation_id
 > validation-c6fadfc1ac916210cebbbfba093d3ea916358a69727073d0db42125e78139784,
-> image_size="original", use_carrier_references=true. Hãy tự xem pixel và đối chiếu
-> với toàn bộ bộ mẫu. Chỉ mô tả hình dáng tổng thể và màu thân, nêu điểm giống, khác
+> resize_test="A", use_carrier_references=true. Hãy tự xem pixel và đối chiếu
+> với toàn bộ mẫu dương và âm theo label. Chỉ mô tả hình dáng tổng thể và màu thân, nêu điểm giống, khác
 > và điều chưa rõ. Bỏ bóng/vệt nước, không suy đoán chi tiết nhỏ. Trả lời tự do,
 > không gọi review_ship_images hay vision reviewer riêng.
 
-Trong chat thứ hai, gửi **cùng prompt trên, chỉ đổi** `image_size="resized"`.
+Trong chat thứ hai — D: gửi **cùng prompt trên, chỉ đổi** `resize_test="A"`
+thành `resize_test="D"`.
 
-Kiểm tra tool call là `view_ship_image` với đúng `image_size`. Tool result phải có
+Kiểm tra tool call là `view_ship_image` với đúng `resize_test`. Tool result phải có
 `review_source="chat_model_direct_pixels"`; ảnh này có kích thước gửi lần lượt
-48×26 và 224×121, `image_resampling` lần lượt là `none` và `bilinear`. Cả hai giữ
-cùng `reference_revision` và `reference_count`; ảnh mẫu vẫn theo quy tắc 224 px.
+48×26 và 448×243, `image_resampling` lần lượt là `none` và `bilinear`. Trong
+`reference_images`, kiểm tra kích thước gốc/gửi model và `label` của **từng mẫu**.
+Cả hai phải giữ cùng `reference_revision`, `reference_count=6`, và
+`reference_label_counts={"aircraft_carrier": 2, "not_aircraft_carrier": 4}`.
 Tool chỉ mở ảnh, không tạo flag hoặc sửa nhãn. Nếu tải ảnh/mẫu lỗi thì chưa có
 phản hồi từ pixel hợp lệ để so sánh.
+
+Nếu bỏ `resize_test`, `view_ship_image` vẫn hỗ trợ thí nghiệm cũ: `image_size`
+chỉ chọn query gốc/resize 224 px, còn mẫu theo quy tắc 224 px. Không dùng chế độ
+cũ để kết luận đã test A/D.
 
 Ảnh hiển thị trong chat vẫn có thể được phóng lên 384 px cho người xem; đó là bản
 preview riêng. Xác định kích thước gửi agent từ tool metadata, không từ kích cỡ ảnh

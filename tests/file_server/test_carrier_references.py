@@ -1,6 +1,7 @@
 """Reference snapshots include every valid image and never invent example assets."""
 
 from io import BytesIO
+import json
 
 from PIL import Image
 import pytest
@@ -60,6 +61,27 @@ def test_changing_only_description_changes_revision(tmp_path):
     after = load_reference_library(folder)
     assert before.revision != after.revision
     assert before.images == after.images
+
+
+def test_label_changes_revision_but_preserves_image_identity_and_pixels(tmp_path):
+    folder = reference_folder(tmp_path)
+    original = load_reference_library(folder)
+    (folder / "labels.json").write_text(json.dumps({"known.png": "not_aircraft_carrier"}))
+    changed = load_reference_library(folder)
+    assert original.revision != changed.revision
+    assert original.images[0].reference_id == changed.images[0].reference_id
+    assert original.images[0].data == changed.images[0].data
+    assert changed.manifest("http://viewer")["images"][0]["label"] == "not_aircraft_carrier"
+
+
+@pytest.mark.parametrize("labels", [{}, {"other.png": "aircraft_carrier"},
+    {"known.png": "unknown"}, {"known.png": []},
+    {"known.png": "aircraft_carrier", "missing.png": "not_aircraft_carrier"}])
+def test_label_manifest_must_cover_exactly_every_image_with_valid_labels(tmp_path, labels):
+    reference_folder(tmp_path)
+    (tmp_path / "labels.json").write_text(json.dumps(labels))
+    with pytest.raises(ValueError):
+        load_reference_library(tmp_path)
 
 
 def test_limits_apply_to_raw_and_decoded_images():

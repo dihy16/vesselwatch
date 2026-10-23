@@ -26,13 +26,24 @@ from tests.file_server.test_carrier_references import png, reference_folder
 
 @pytest.mark.parametrize("image_size,expected_size", [("original", (48, 26)), ("resized", (224, 121))])
 @pytest.mark.parametrize("use_references", [False, True])
+@pytest.mark.parametrize("resize_test", [None, "A", "D"])
 def test_actual_chat_request_receives_selected_size_and_unchanged_references(
-        tmp_path, monkeypatch, image_size, expected_size, use_references):
+        tmp_path, monkeypatch, image_size, expected_size, use_references, resize_test):
     import ship_agent.clients.carrier_reference_client as references
     import ship_agent.tools.images as image_tools
     import ship_agent.vision.image_review as reviewer
 
-    library = load_reference_library(reference_folder(tmp_path))
+    reference_folder(tmp_path)
+    (tmp_path / "known.png").write_bytes(png(size=(200, 150)))
+    (tmp_path / "negative.png").write_bytes(png("red", size=(400, 300)))
+    (tmp_path / "labels.json").write_text(json.dumps({
+        "known.png": "aircraft_carrier", "negative.png": "not_aircraft_carrier"}))
+    library = load_reference_library(tmp_path)
+    if resize_test is not None:
+        image_size_expected = "original" if resize_test == "A" else "resized"
+        expected_size = (48, 26) if resize_test == "A" else (448, 243)
+    else:
+        image_size_expected = image_size
     rows = list(pair_rows())
     data = png(size=(48, 26))
     monkeypatch.setattr(reviewer, "_image_bytes", lambda *args: data)
@@ -54,7 +65,7 @@ def test_actual_chat_request_receives_selected_size_and_unchanged_references(
             answer = {"role": "assistant", "content": None, "tool_calls": [{"id": "open-image",
                 "type": "function", "function": {"name": "view_ship_image", "arguments": json.dumps({
                     "observation_id": rows[0]["observation_id"], "image_size": image_size,
-                    "use_carrier_references": use_references})}}]}
+                    "use_carrier_references": use_references, "resize_test": resize_test})}}]}
             finish = "tool_calls"
         else:
             blocks = [part for message in body["messages"] if isinstance(message.get("content"), list)
@@ -63,13 +74,30 @@ def test_actual_chat_request_receives_selected_size_and_unchanged_references(
             actual = [base64.b64decode(part["image_url"]["url"].split(",", 1)[1]) for part in blocks]
             with Image.open(BytesIO(actual[0])) as target:
                 assert target.size == expected_size
-            assert actual[1:] == ([prepare_vision_image(image.data).data for image in library.images]
-                                  if use_references else [])
+            if use_references and resize_test is not None:
+                expected_reference_sizes = [(200, 150), (400, 300)] if resize_test == "A" else [(448, 336)] * 2
+                for encoded, size in zip(actual[1:], expected_reference_sizes):
+                    with Image.open(BytesIO(encoded)) as reference:
+                        assert reference.size == size
+                if resize_test == "A":
+                    assert actual[1:] == [image.data for image in library.images]
+            else:
+                assert actual[1:] == ([prepare_vision_image(image.data).data for image in library.images]
+                                      if use_references else [])
             result = json.loads(next(message for message in reversed(body["messages"])
                                      if message["role"] == "tool")["content"])
-            assert result["image_size"] == image_size
+            assert result["image_size"] == image_size_expected
+            if resize_test is not None:
+                assert result["resize_test"] == result["visual_input"]["resize_test"] == resize_test
             assert (result["vision_image_width_px"], result["vision_image_height_px"]) == expected_size
             assert result["reference_count"] == (len(library.images) if use_references else 0)
+            if use_references:
+                assert result["reference_label_counts"] == {"aircraft_carrier": 1, "not_aircraft_carrier": 1}
+                assert [record["label"] for record in result["reference_images"]] == [image.label for image in library.images]
+                if resize_test is not None:
+                    assert [(record["vision_image_width_px"], record["vision_image_height_px"])
+                            for record in result["reference_images"]] == expected_reference_sizes
+                assert "label=not_aircraft_carrier" in json.dumps(body["messages"])
             assert "saved_prediction" not in result and "visual_review" not in result
             assert "base64" not in json.dumps(result)
             answer = {"role": "assistant", "content": "Thân tàu thuôn dài; chưa rõ đường bao."}
@@ -96,3 +124,5 @@ def test_direct_view_rejects_unknown_observation_or_size_before_loading(monkeypa
         tool.invoke({"observation_id": "missing", "image_size": "original"})
     with pytest.raises(ValidationError):
         tool.invoke({"observation_id": rows[0]["observation_id"], "image_size": "arbitrary"})
+    with pytest.raises(ValidationError):
+        tool.invoke({"observation_id": rows[0]["observation_id"], "resize_test": "B"})

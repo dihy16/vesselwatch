@@ -12,6 +12,7 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000
 VISION_LONG_EDGE = 224
 PREVIEW_LONG_EDGE = 384
+EXPERIMENT_LONG_EDGE = 448
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,16 @@ def prepare_original_image(data: bytes):
     """Decode to PNG without resampling the native pixels."""
     normalized, width, height = normalize_image(data)
     return ImageVariant(normalized, width, height, width, height)
+
+
+def prepare_test_image(data: bytes, condition: str):
+    """A preserves native size; D resamples the long edge to 448 px, keeping aspect."""
+    if condition == "A":
+        return prepare_original_image(data)
+    if condition != "D":
+        raise ValueError("Resize test must be A or D.")
+    return _resize_image(data, EXPERIMENT_LONG_EDGE, upscale_only=False,
+                         max_bytes=MAX_IMAGE_BYTES, max_pixels=MAX_IMAGE_PIXELS)
 
 
 def prepare_vision_image(data: bytes, *, max_bytes=MAX_IMAGE_BYTES, max_pixels=MAX_IMAGE_PIXELS):
