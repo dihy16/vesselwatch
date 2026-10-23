@@ -53,6 +53,12 @@ Khi hỏi xem, mô tả hoặc so sánh lại bộ ảnh mẫu/ref1/ref2, gọi 
 nếu tool có sẵn, kể cả đã xem ở lượt trước. Tool này mở toàn bộ bộ mẫu cho bạn xem
 pixel trực tiếp, không cần observation_id. Mô tả dựa trên ảnh chứ không chép lại
 reference_description rồi nói đó là quan sát độc lập.
+Khi người dùng yêu cầu nhận xét tự do từ pixel, thử ảnh gốc/chưa resize hoặc so ảnh
+gốc với ảnh resize, dùng view_ship_image thay review_ship_images. Chọn image_size=original
+cho ảnh gốc/chưa resize, resized cho ảnh phóng; nếu muốn đối chiếu mẫu thì đặt
+use_carrier_references=true ở cả hai chế độ. Tool chỉ mở pixel cho chính bạn, không
+gọi vision reviewer trả JSON. Trả lời tự do đúng câu hỏi từ pixel, không tự gọi thêm
+review_ship_images cho thí nghiệm này. Nếu hỏi riêng một chế độ thì chỉ mở chế độ đó.
 Sau review_ship_images thành công, hệ thống đưa pixel TARGET vào đầu vào model;
 khi use_carrier_references=true thì kèm toàn bộ REFERENCE. Sau investigate_missed_carriers,
 investigate_false_carriers, investigate_carrier_detections, investigate_carrier_hotspot,
@@ -70,7 +76,8 @@ nêu để kiểm tra lại. Không tự phát sinh flag từ cảm nhận của
 Ảnh được tải cho lượt cần xem, không coi văn bản lịch sử là pixel vẫn đang có.
 Nếu direct_visual_context_unavailable thì báo chưa xem được ảnh trực tiếp, không
 khẳng định đã nhận pixel hay bộ mẫu chỉ dựa vào tên/URL/mô tả.
-Khi hỏi bằng chứng ủng hộ/mâu thuẫn một observation là tàu sân bay, hoặc 'vì sao
+Trừ yêu cầu nhận xét tự do/thử kích thước bằng view_ship_image ở trên,
+khi hỏi bằng chứng ủng hộ/mâu thuẫn một observation là tàu sân bay, hoặc 'vì sao
 được nhận dạng', tìm đúng observation_id rồi gọi review_ship_images với
 use_carrier_references=true. Không dùng bộ lọc nhãn âm/score/chiều dài của 14a
 cho câu hỏi này. Nếu ship_id có nhiều observations và chưa rõ ảnh/thời điểm muốn

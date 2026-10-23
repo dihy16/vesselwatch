@@ -44,7 +44,41 @@ mẫu. Kiểm tra ảnh hiện lớn hơn, bấm mở được bản gốc, URL 
 và kích thước native/sent trong tool result đúng. Đây chưa phải bằng chứng
 resize cải thiện độ chính xác; cần đối chiếu kết quả vision thực tế trên MID.
 
-## Thử hai phản hồi model: ảnh gốc và ảnh resize
+## Thử trực tiếp agent trong Open WebUI: ảnh gốc và ảnh resize
+
+Đây là luồng để so **hai câu trả lời tự do của chính agent đang chat**, không phải
+chạy vision reviewer riêng. Sau `git pull`, restart LangGraph port 2024 để nạp tool
+`view_ship_image`; giữ file server đang chạy. Không cần sửa Pipe hay source Open WebUI.
+Model nhận pixel là `OPENAI_MODEL` của agent, không phải model `OPENAI_VISION_MODEL`
+của reviewer (hai cấu hình có thể trỏ cùng model hoặc khác nhau).
+
+Mở **hai chat mới**, chọn cùng agent và dùng cùng observation_id/bộ mẫu. Không gửi
+hai prompt liên tiếp trong cùng chat nếu muốn tránh ảnh hưởng của câu trả lời đầu.
+
+Trong chat thứ nhất:
+
+> Dùng view_ship_image với observation_id
+> validation-c6fadfc1ac916210cebbbfba093d3ea916358a69727073d0db42125e78139784,
+> image_size="original", use_carrier_references=true. Hãy tự xem pixel và đối chiếu
+> với toàn bộ bộ mẫu. Chỉ mô tả hình dáng tổng thể và màu thân, nêu điểm giống, khác
+> và điều chưa rõ. Bỏ bóng/vệt nước, không suy đoán chi tiết nhỏ. Trả lời tự do,
+> không gọi review_ship_images hay vision reviewer riêng.
+
+Trong chat thứ hai, gửi **cùng prompt trên, chỉ đổi** `image_size="resized"`.
+
+Kiểm tra tool call là `view_ship_image` với đúng `image_size`. Tool result phải có
+`review_source="chat_model_direct_pixels"`; ảnh này có kích thước gửi lần lượt
+48×26 và 224×121, `image_resampling` lần lượt là `none` và `bilinear`. Cả hai giữ
+cùng `reference_revision` và `reference_count`; ảnh mẫu vẫn theo quy tắc 224 px.
+Tool chỉ mở ảnh, không tạo flag hoặc sửa nhãn. Nếu tải ảnh/mẫu lỗi thì chưa có
+phản hồi từ pixel hợp lệ để so sánh.
+
+Ảnh hiển thị trong chat vẫn có thể được phóng lên 384 px cho người xem; đó là bản
+preview riêng. Xác định kích thước gửi agent từ tool metadata, không từ kích cỡ ảnh
+trên màn hình. Hệ thống giữ pixel ở kích thước đã chọn khi gửi request; provider
+vẫn có thể xử lý ảnh thêm ở bên trong. Một cặp câu trả lời chưa chứng minh độ chính xác.
+
+## Thử vision model riêng bằng CLI: ảnh gốc và ảnh resize
 
 Trong virtualenv trên MID, chạy file server 8001 và dùng ID thật. Ví dụ với crop
 48×26 px đã kiểm tra trước đó:
@@ -67,9 +101,8 @@ và điều chưa rõ. Không dùng bóng/vệt nước hoặc yêu cầu chi ti
 Kích thước pixel TARGET được ghi trong báo cáo, không đưa vào prompt ở chế độ này,
 để model nhận xét hình ảnh thay vì dựa vào con số kích thước. Hai lượt có cùng prompt.
 
-Không cần gửi prompt trong Open WebUI: lệnh gọi trực tiếp model đã cấu hình trong
-`.env`. Agent trong Open WebUI vẫn dùng quy tắc resize thông thường, nên hỏi lại
-trong chat không tạo được hai điều kiện gốc/resize như lệnh này. Chỉ cần file server
+Lệnh này gọi trực tiếp vision model đã cấu hình trong `.env`, bỏ qua agent và
+Open WebUI. Đây là thí nghiệm riêng với luồng chat ở trên. Chỉ cần file server
 đang chạy; không cần restart LangGraph để chạy thí nghiệm CLI.
 
 Bỏ `--free-text` để chạy lại chế độ JSON/schema như bài test ban đầu. Hai chế độ

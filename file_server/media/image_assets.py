@@ -75,6 +75,12 @@ def _resize_image(data, long_edge, *, upscale_only, max_bytes, max_pixels):
     return ImageVariant(encoded, width, height, *size)
 
 
+def prepare_original_image(data: bytes):
+    """Decode to PNG without resampling the native pixels."""
+    normalized, width, height = normalize_image(data)
+    return ImageVariant(normalized, width, height, width, height)
+
+
 def prepare_vision_image(data: bytes, *, max_bytes=MAX_IMAGE_BYTES, max_pixels=MAX_IMAGE_PIXELS):
     """Enlarge tiny inputs to 224 px; preserve larger inputs and their detail."""
     return _resize_image(data, VISION_LONG_EDGE, upscale_only=True,

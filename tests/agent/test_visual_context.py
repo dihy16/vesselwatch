@@ -45,7 +45,7 @@ def test_chat_receives_all_pixels_for_each_supported_mode(library, mode):
         assert library.description in json.dumps(content, ensure_ascii=False)
 
 
-@pytest.mark.parametrize("failure", ["unknown-id", "wrong-image", "duplicate", "revision", "bad-revision", "extra-field"])
+@pytest.mark.parametrize("failure", ["unknown-id", "wrong-image", "duplicate", "revision", "bad-revision", "extra-field", "bad-size"])
 def test_no_arbitrary_url_or_mismatched_snapshot_reaches_image_loader(library, failure):
     rows = list(pair_rows())
     descriptor = attach_visual_input({}, rows, library)["visual_input"]
@@ -59,6 +59,8 @@ def test_no_arbitrary_url_or_mismatched_snapshot_reaches_image_loader(library, f
         descriptor["reference_revision"] = "0" * 64
     elif failure == "bad-revision":
         descriptor["reference_revision"] = "http://untrusted/refs"
+    elif failure == "bad-size":
+        descriptor["targets"][0]["image_size"] = "unexpected"
     else:
         descriptor["url"] = "http://untrusted/refs"
     with pytest.raises(ValueError):

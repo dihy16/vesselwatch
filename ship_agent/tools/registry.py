@@ -40,8 +40,9 @@ def create_tools(reference_date: date | None = None, *, data_source: DataSource 
         query_tools.extend(create_map_tools(context))
     if not is_mock:
         query_tools.extend(create_area_tools(context))
-        from ship_agent.tools.images import create_image_review_tool, create_reference_view_tool
-        query_tools.extend([create_image_review_tool(observations, data_source=data_source), create_reference_view_tool()])
+        from ship_agent.tools.images import create_image_review_tool, create_reference_view_tool, create_image_view_tool
+        query_tools.extend([create_image_review_tool(observations, data_source=data_source), create_reference_view_tool(),
+                            create_image_view_tool(observations, data_source=data_source)])
     if data_source == "file_server":
         from ship_agent.tools.missed_carrier_tool import create_missed_carrier_tool
         from ship_agent.tools.false_carrier_tool import create_false_carrier_tool

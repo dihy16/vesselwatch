@@ -1,8 +1,11 @@
 """Image review and full reference-library tools."""
 
+from typing import Literal
+
 import httpx
 from langchain_core.tools import ToolException, tool
 
+from file_server.media.image_assets import prepare_original_image, prepare_vision_image
 from ship_agent import config
 from ship_agent.clients.carrier_reference_client import load_carrier_references
 from ship_agent.runtime.visual_context import attach_visual_input
@@ -68,6 +71,46 @@ def create_image_review_tool(observations, *, data_source):
         return attach_visual_input(image_review.review_image(observation, data_source=data_source), [observation])
 
     return review_ship_images
+
+
+def create_image_view_tool(observations, *, data_source):
+    @tool
+    def view_ship_image(observation_id: str, image_size: Literal["original", "resized"] = "resized",
+                        use_carrier_references: bool = False) -> dict:
+        """Mở pixel ảnh cho chính LLM chat nhận xét tự do, không gọi vision reviewer/JSON.
+
+        Dùng khi người dùng muốn trực tiếp xem/nhận xét ảnh hoặc thử ảnh gốc và resize.
+        observation_id phải có trong dataset. image_size=original giữ kích thước pixel gốc;
+        resized phóng cạnh dài ảnh nhỏ lên 224 px theo bilinear, giữ ảnh lớn hơn nguyên size.
+        use_carrier_references=true gửi kèm TOÀN BỘ mẫu, cùng quy tắc resize mẫu 224 px
+        ở cả hai chế độ TARGET. Không phân loại/flag hoặc sửa prediction đã lưu.
+        """
+        observation = next((row for row in observations if row["observation_id"] == observation_id), None)
+        if observation is None or not observation.get("images"):
+            raise ToolException("Không tìm thấy observation có ảnh; lấy observation_id chính xác từ tool truy vấn.")
+        library = None
+        if use_carrier_references:
+            try:
+                library = load_carrier_references()
+            except (httpx.HTTPError, OSError, ValueError) as exc:
+                raise ToolException("Chưa tải đủ bộ mẫu; kiểm tra file server và CARRIER_REFERENCE_DIR.") from exc
+        try:
+            data = image_review._image_bytes(observation, data_source, None)
+            prepared = prepare_original_image(data) if image_size == "original" else prepare_vision_image(data)
+        except (httpx.HTTPError, OSError, ValueError) as exc:
+            raise ToolException("Không tải/đọc được ảnh đăng ký; kiểm tra file server và định dạng ảnh.") from exc
+        result = {"status": "ready", "observation_id": observation_id,
+                  "image_url": observation["images"][0]["url"], "image_size": image_size,
+                  **prepared.metadata(), "review_source": "chat_model_direct_pixels",
+                  "reference_count": len(library.images) if library is not None else 0,
+                  "is_ground_truth": False}
+        if library is not None:
+            result.update(reference_revision=library.revision, reference_description=library.description,
+                          reference_images=library.display_images(config.FILE_SERVER_URL))
+        return attach_visual_input(result, [observation], library, image_size=image_size)
+
+    return view_ship_image
+
 
 def create_reference_view_tool():
     @tool
