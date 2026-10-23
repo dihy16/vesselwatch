@@ -43,3 +43,36 @@ Trong chat, chạy lại T13 với observation thật, yêu cầu kèm ảnh m�
 mẫu. Kiểm tra ảnh hiện lớn hơn, bấm mở được bản gốc, URL preview có `preview=1`,
 và kích thước native/sent trong tool result đúng. Đây chưa phải bằng chứng
 resize cải thiện độ chính xác; cần đối chiếu kết quả vision thực tế trên MID.
+
+## Thử hai phản hồi model: ảnh gốc và ảnh resize
+
+Trong virtualenv trên MID, chạy file server 8001 và dùng ID thật. Ví dụ với crop
+48×26 px đã kiểm tra trước đó:
+
+```bash
+python -m ship_agent.image_review --data-source file_server \
+  --observation-id validation-c6fadfc1ac916210cebbbfba093d3ea916358a69727073d0db42125e78139784 \
+  --compare-resize --use-carrier-references
+```
+
+Lệnh gọi model **hai lần độc lập**: ảnh mục tiêu gốc 48×26 px và bản bilinear
+224×121 px. Cả hai dùng cùng model/cấu hình `OPENAI_VISION_*` (hoặc `OPENAI_*`),
+cùng prompt, `detail=high`, cùng mô tả và toàn bộ bộ mẫu. Ảnh mẫu giữ nguyên cách
+chuẩn bị 224 px của ứng dụng ở cả hai lượt; chỉ ảnh mục tiêu thay đổi. Model không
+đọc câu trả lời của lượt kia. Không truyền nhãn, score hay kích thước mét vào model.
+
+Thư mục mới trong `data/resize_comparisons/` có `comparison.html` để xem cạnh nhau,
+`comparison.json` chứa nguyên văn hai phản hồi, kích thước/hash đầu vào, model,
+revision mẫu, thời gian xử lý và token nếu provider trả; kèm `original.png` và
+`resized.png`. Không thay file gốc, nhãn hay flag. Phản hồi được giữ trước quy tắc
+hậu xử lý; JSON sai schema vẫn được lưu để đọc, lỗi API được báo riêng.
+
+Bỏ `--use-carrier-references` để thử đọc riêng ảnh mục tiêu, không đối chiếu mẫu.
+Thêm `--prepare-only` để chỉ tạo cặp ảnh/báo cáo mà không gọi model; vẫn cần API
+dữ liệu để lấy ảnh và API bộ mẫu nếu có tùy chọn mẫu. `--output-dir` chỉ định một
+thư mục mới nếu muốn chọn nơi lưu. Ảnh có cạnh dài từ 224 px trở lên không tạo hai
+điều kiện khác nhau theo quy tắc hiện tại nên lệnh yêu cầu chọn crop nhỏ hơn.
+
+So sánh câu trả lời giúp phát hiện khác biệt hành vi, chưa chứng minh resize chính
+xác hơn. Model có thể không trả giống nhau qua các lần gọi và provider có thể xử lý
+kích thước nội bộ; muốn đánh giá chất lượng cần nhiều ảnh, nhiều lượt và nhãn review.
