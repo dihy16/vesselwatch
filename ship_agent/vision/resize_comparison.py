@@ -16,7 +16,30 @@ from ship_agent.vision.schemas import CarrierReferenceReview, VisualReview
 from ship_agent.workflows.reference_review import reference_review_content
 
 
-def compare_resize(data, *, observation_id, library=None, model=None, prepare_only=False):
+def free_text_review_prompt(*, use_references):
+    """Ask for visible shape/color evidence without a structured-output constraint."""
+    comparison = (
+        "Đối chiếu TARGET với toàn bộ ảnh mẫu được cung cấp và mô tả kèm theo. "
+        "Nêu điểm giống, khác với từng mẫu, dẫn tên hoặc reference_id của mẫu đó; "
+        "nếu không nhìn đủ rõ để đối chiếu thì nói rõ. "
+        if use_references else
+        "Chỉ nhận xét ảnh TARGET được cung cấp; không có ảnh mẫu để đối chiếu. "
+    )
+    return (
+        "Hãy trả lời tự do bằng tiếng Việt, không cần JSON hay schema. "
+        "Chỉ đánh giá hình dáng tổng thể và màu phần thân tàu nhìn thấy trực tiếp. "
+        "Không dùng bóng, vệt nước, nền biển hay hướng di chuyển làm bằng chứng. "
+        "Không suy đoán hoặc yêu cầu chi tiết máy bay, vạch boong, boong bay, thượng tầng "
+        "hay tháp lái để đánh giá ở độ phân giải này. "
+        + comparison +
+        "Nêu những gì nhìn thấy, bằng chứng ủng hộ/mâu thuẫn nếu có, những điểm chưa rõ "
+        "và kết luận thận trọng. Nếu đường bao hoặc màu thân không đủ rõ thì kết luận "
+        "chưa đủ bằng chứng; không tự xác nhận nhãn tàu. "
+        "Ảnh có thể đã được nội suy; nội suy không tạo thêm chi tiết thực."
+    )
+
+
+def compare_resize(data, *, observation_id, library=None, model=None, prepare_only=False, free_text=False):
     """Only target pixels vary; prompts, reference pixels and settings stay fixed."""
     normalized, width, height = normalize_image(data)
     variants = {"original": ImageVariant(normalized, width, height, width, height),
@@ -26,14 +49,20 @@ def compare_resize(data, *, observation_id, library=None, model=None, prepare_on
     if library is not None and (not library.images or not library.description.strip()):
         raise ValueError("Bộ mẫu phải có mô tả và toàn bộ ảnh hợp lệ.")
     prompt = reference_review_prompt() if library is not None else visual_review_prompt()
+    if free_text:
+        prompt = free_text_review_prompt(use_references=library is not None)
     schema = CarrierReferenceReview if library is not None else VisualReview
     # Do not tell the model which condition it sees or change dimension text between calls.
     target_text = (f"TARGET — đánh giá ảnh tàu này. Kích thước gốc {width} × {height} px. "
                    "Ảnh đầu vào có thể được nội suy; không coi nội suy là chi tiết mới.")
+    if free_text:
+        # Keep native dimensions in the report, avoiding a size-based cue in this experiment.
+        target_text = "TARGET — hãy nhận xét ảnh tàu này theo hướng dẫn."
     reviewer = None if prepare_only else model if model is not None else _vision_model()
     result = {"experiment": "target_resize_comparison", "observation_id": observation_id,
               "created_at": datetime.now(timezone.utc).isoformat(), "prepare_only": prepare_only,
               "model": getattr(reviewer, "model_name", None), "detail": "high",
+              "response_format": "free_text" if free_text else "json",
               "source_sha256": sha256(data).hexdigest(), "system_prompt_sha256": sha256(prompt.encode()).hexdigest(),
               "reference_revision": library.revision if library is not None else None,
               "reference_count": len(library.images) if library is not None else 0,
@@ -56,14 +85,23 @@ def compare_resize(data, *, observation_id, library=None, model=None, prepare_on
                                            config={"tags": ["nostream"]})
                 condition["raw_response"] = response.text
                 condition["usage"] = getattr(response, "usage_metadata", None)
-                parsed = schema.model_validate_json(response.text)
-                if library is not None and any(item.reference_id not in known for item in parsed.reference_evidence):
-                    raise ValueError("Unknown reference citation")
-                condition.update(status="complete", parsed_response=parsed.model_dump())
+                if free_text:
+                    if not response.text.strip():
+                        raise ValueError("Empty response")
+                    condition["status"] = "complete"
+                else:
+                    parsed = schema.model_validate_json(response.text)
+                    if library is not None and any(item.reference_id not in known for item in parsed.reference_evidence):
+                        raise ValueError("Unknown reference citation")
+                    condition.update(status="complete", parsed_response=parsed.model_dump())
             except Exception:
                 # Preserve returned text for inspection; provider exceptions may contain pixel request bodies.
                 condition["status"] = "invalid_response" if condition["raw_response"] is not None else "request_failed"
-                condition["error"] = "Phản hồi không hợp lệ hoặc chưa gọi được model; kiểm tra model/endpoint và schema."
+                condition["error"] = (
+                    "Phản hồi rỗng hoặc chưa gọi được model; kiểm tra model/endpoint."
+                    if free_text else
+                    "Phản hồi không hợp lệ hoặc chưa gọi được model; kiểm tra model/endpoint và schema."
+                )
             condition["elapsed_seconds"] = round(perf_counter() - started, 3)
         result["conditions"].append(condition)
     return result, variants
@@ -84,7 +122,7 @@ def write_comparison_report(result, variants, directory):
         panels.append(f'<section><h2>{title}</h2><p>{variant.width} × {variant.height} px; '
                       f'{escape(condition["status"])}</p><div class="image"><img src="{url}" alt="{title}"></div>'
                       f'<pre>{escape(response)}</pre></section>')
-    metadata = {key: result[key] for key in ("observation_id", "model", "reference_revision", "reference_count")}
+    metadata = {key: result[key] for key in ("observation_id", "model", "response_format", "reference_revision", "reference_count")}
     html = ('<!DOCTYPE html><html lang="vi"><meta charset="utf-8"><title>So sánh ảnh gốc và resize</title>'
             '<style>body{font:16px sans-serif;margin:24px;color:#18364a}main{display:flex;gap:20px}'
             'section{flex:1;min-width:0;border:1px solid #ccc;padding:18px;border-radius:10px}'

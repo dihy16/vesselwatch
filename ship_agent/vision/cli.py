@@ -19,11 +19,12 @@ def main():
     parser.add_argument("--data-source", choices=["demo", "file_server"], default="demo")
     parser.add_argument("--observation-id", required=True)
     parser.add_argument("--compare-resize", action="store_true", help="Gọi độc lập ảnh gốc và resize, lưu hai phản hồi để so sánh.")
+    parser.add_argument("--free-text", action="store_true", help="So sánh hai câu trả lời tự do về hình dáng tổng thể và màu thân, không ép JSON.")
     parser.add_argument("--use-carrier-references", action="store_true", help="Dùng cùng toàn bộ bộ mẫu ở hai lượt so sánh.")
     parser.add_argument("--prepare-only", action="store_true", help="Chỉ chuẩn bị cặp ảnh/báo cáo, không gọi model.")
     parser.add_argument("--output-dir", help="Thư mục báo cáo mới (mặc định data/resize_comparisons/...).")
     args = parser.parse_args()
-    if not args.compare_resize and (args.use_carrier_references or args.prepare_only or args.output_dir):
+    if not args.compare_resize and (args.free_text or args.use_carrier_references or args.prepare_only or args.output_dir):
         parser.error("Các tùy chọn so sánh cần --compare-resize.")
     try:
         if args.data_source == "demo":
@@ -45,11 +46,12 @@ def main():
                 raise ValueError("Không tìm thấy observation có ảnh trong nguồn đã chọn.")
             library = load_carrier_references() if args.use_carrier_references else None
             result, variants = compare_resize(_image_bytes(observation, args.data_source, None),
-                observation_id=args.observation_id, library=library, prepare_only=args.prepare_only)
+                observation_id=args.observation_id, library=library, prepare_only=args.prepare_only,
+                free_text=args.free_text)
             directory = args.output_dir or Path("data/resize_comparisons") / (
                 datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid4().hex[:8])
             report = write_comparison_report(result, variants, directory)
-            result = {"report": str(report.resolve()), "conditions": [
+            result = {"report": str(report.resolve()), "response_format": result["response_format"], "conditions": [
                 {key: item[key] for key in ("name", "status", "vision_image_width_px", "vision_image_height_px")}
                 for item in result["conditions"]]}
         else:

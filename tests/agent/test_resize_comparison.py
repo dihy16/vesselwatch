@@ -79,7 +79,8 @@ def test_failure_does_not_drop_the_other_condition_or_expose_provider_body():
     assert "sensitive request body" not in json.dumps(report)
 
 
-def test_cli_prepare_only_wires_source_references_and_report(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("free_text", [False, True])
+def test_cli_prepare_only_wires_source_references_and_report(tmp_path, monkeypatch, capsys, free_text):
     from ship_agent.vision.cli import main
     import ship_agent.clients.file_server_client as source
     import ship_agent.clients.carrier_reference_client as references
@@ -89,10 +90,62 @@ def test_cli_prepare_only_wires_source_references_and_report(tmp_path, monkeypat
     monkeypatch.setattr(references, "load_carrier_references", lambda: load_reference_library(reference_folder(tmp_path)))
     directory = tmp_path / "output"
     monkeypatch.setattr("sys.argv", ["image_review", "--data-source", "file_server", "--observation-id", "id",
-        "--compare-resize", "--use-carrier-references", "--prepare-only", "--output-dir", str(directory)])
+        "--compare-resize", "--use-carrier-references", "--prepare-only", "--output-dir", str(directory)]
+        + (["--free-text"] if free_text else []))
     main()
     summary = json.loads(capsys.readouterr().out)
     assert summary["conditions"][0]["status"] == "prepared"
     assert (directory / "comparison.html").exists()
     report = json.loads((directory / "comparison.json").read_text(encoding="utf-8"))
     assert report["reference_count"] == 1 and report["model"] is None
+    assert report["response_format"] == ("free_text" if free_text else "json")
+    assert summary["response_format"] == report["response_format"]
+
+
+@pytest.mark.parametrize("use_references", [False, True])
+def test_free_text_preserves_independent_answers_without_schema_validation(tmp_path, use_references):
+    library = load_reference_library(reference_folder(tmp_path)) if use_references else None
+    answers = ["Thân thuôn dài, màu xám nhạt; chưa rõ đường bao.", "Màu thân sáng; chưa đủ bằng chứng."]
+    calls = []
+
+    class Reviewer:
+        def invoke(self, messages, **kwargs):
+            calls.append(deepcopy(messages))
+            return AIMessage(content=answers[len(calls) - 1])
+
+    report, variants = compare_resize(png(size=(48, 26)), observation_id="id", model=Reviewer(),
+                                     library=library, free_text=True)
+    assert len(calls) == 2 and all(len(messages) == 2 for messages in calls)
+    assert calls[0][0].content == calls[1][0].content
+    assert calls[0][1].content[0] == calls[1][1].content[0]
+    assert calls[0][1].content[2:] == calls[1][1].content[2:]
+    assert "48" not in calls[0][1].content[0]["text"]
+    assert answers[0] not in str(calls[1])
+    assert "Hãy trả lời tự do" in calls[0][0].content
+    assert ("toàn bộ ảnh mẫu" in calls[0][0].content) == use_references
+    assert report["response_format"] == "free_text"
+    assert [item["raw_response"] for item in report["conditions"]] == answers
+    assert all(item["status"] == "complete" and item["parsed_response"] is None for item in report["conditions"])
+    path = write_comparison_report(report, variants, tmp_path / "free_text_report")
+    assert all(answer in path.read_text(encoding="utf-8") for answer in answers)
+
+
+def test_free_text_empty_response_does_not_prevent_second_answer():
+    class Reviewer:
+        calls = 0
+        def invoke(self, *args, **kwargs):
+            self.calls += 1
+            return AIMessage(content="   " if self.calls == 1 else "Chưa đủ bằng chứng.")
+
+    report, _ = compare_resize(png(size=(48, 26)), observation_id="id", model=Reviewer(), free_text=True)
+    assert [item["status"] for item in report["conditions"]] == ["invalid_response", "complete"]
+
+
+def test_cli_rejects_free_text_without_comparison(monkeypatch, capsys):
+    from ship_agent.vision.cli import main
+
+    monkeypatch.setattr("sys.argv", ["image_review", "--observation-id", "id", "--free-text"])
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2
+    assert "--compare-resize" in capsys.readouterr().err
