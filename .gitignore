@@ -5,4 +5,4 @@ __pycache__/
 .langgraph_api/
 *.pyc
 .vibe-wise/
-data/*
+/data/
