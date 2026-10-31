@@ -1,4 +1,24 @@
-# Agent truy vấn tàu
+# VesselWatch — Trợ lý giám sát và phân tích tàu biển
+
+VesselWatch giúp người dùng tra cứu, theo dõi và phân tích các lượt quan sát tàu
+biển bằng hội thoại tiếng Việt và bản đồ tương tác. Từ câu hỏi về một khu vực
+hoặc khoảng thời gian, người dùng có thể tìm các quan sát phù hợp, xem ảnh và
+kết quả nhận dạng, rồi tổng hợp thông tin phục vụ giám sát và xác minh.
+
+Các tính năng chính:
+
+- **Tra cứu linh hoạt:** tìm các lượt quan sát theo thời gian, khu vực, kích thước
+  và nhãn nhận dạng.
+- **Khám phá trên bản đồ:** chọn vùng biển, tìm quanh một vị trí hoặc tự vẽ vùng
+  quan tâm để truy vấn và hỏi tiếp trong cuộc chat.
+- **Phân tích ảnh bằng AI:** mô tả đặc điểm nhìn thấy, đối chiếu với kết quả
+  nhận dạng đã lưu và chỉ ra những trường hợp chưa đủ rõ để kết luận.
+- **Hỗ trợ xác minh tàu sân bay:** tìm các quan sát cần rà soát, phát hiện cụm
+  tập trung và sắp xếp ưu tiên kiểm tra thủ công.
+- **Báo cáo giám sát:** tổng hợp số liệu, biểu đồ và so sánh theo tháng để theo
+  dõi thay đổi trong dữ liệu quan sát.
+
+## Tài liệu và hướng dẫn
 
 Cấu trúc package và các entry point: [hướng dẫn codebase](docs/code_structure.md).
 Test các tính năng phân tích: [hướng dẫn test Level 4–5 trên MID/Open WebUI](docs/testing_level_4_5.md).
